@@ -22,3 +22,10 @@ func claimSingleInstance() bool {
 	instanceMutex = h
 	return true
 }
+
+func releaseSingleInstance() {
+	if instanceMutex != 0 {
+		_ = windows.CloseHandle(instanceMutex)
+		instanceMutex = 0
+	}
+}

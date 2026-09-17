@@ -52,6 +52,43 @@ one-second loop into a five-minute one. `scripts/build.sh` is the command.
   `GET /api/state` with `Authorization: Bearer`. The app works without one,
   minus toasts.
 
+## Updating
+
+Modelled on Rampart, deliberately, because it is the behaviour Justin already
+knows: the app says a new version exists and then waits. Nothing installs until
+someone presses the button.
+
+- The check runs **after** the window is up, never before it. A cold start must
+  not wait on the network. Then every 30 minutes.
+- **Every failure is silent.** No network, a 404, a malformed release: the
+  answer is no update, not an error in someone's face.
+- A build whose `Version` is still `dev` never offers an update, so running from
+  source is never interrupted.
+- A dismissed card coming back at the next check is correct, not a bug. Rampart
+  does the same.
+- The restart is safe to offer casually, and the card says so, because **the
+  sessions are not in this process.** They are tmux on the panel's machine.
+  Closing this window costs nothing, which is the whole reason an updater like
+  this is appropriate here and would not be in an app that held state.
+
+Two traps in the implementation:
+
+- **Release the single-instance mutex before launching the new binary**, or the
+  new process sees the old one still holding it and exits immediately, leaving
+  nothing running at all.
+- Windows will not let you overwrite a running `.exe`, but it will let you
+  **rename** one. So: rename the current binary to `.old`, move the new one into
+  place, launch, exit, and delete the `.old` on the next start, which is the
+  only moment it is not in use.
+
+The downloaded binary is checked against a `CLIque.exe.sha256` published beside
+it in the same release. Be honest about what that is worth: it catches a
+truncated or corrupt download. It is **not** a defence against a compromised
+release, because it comes from the same place. Code signing is what that would
+take, and we do not have it yet. Asset URLs are required to be on `github.com`
+for the same reason: the app downloads something and then runs it, so where it
+downloads from is a trust boundary.
+
 ## State
 
 `%AppData%\CLIque\config.json` holds the server URL and the optional token.

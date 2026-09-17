@@ -8,15 +8,26 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jchv/go-webview2"
+)
+
+var (
+	pendingMu sync.Mutex
+	pending   struct {
+		version string
+		exeURL  string
+		sumURL  string
+	}
 )
 
 func main() {
 	if !claimSingleInstance() {
 		return
 	}
+	cleanupOld()
 
 	cfg, _ := Load()
 
@@ -34,6 +45,31 @@ func main() {
 		return
 	}
 	defer w.Destroy()
+
+	_ = w.Bind("cliqueUpdatePending", func() string {
+		pendingMu.Lock()
+		defer pendingMu.Unlock()
+		return pending.version
+	})
+	// Bindings run on the UI thread: capture the URLs and return, then
+	// download and swap in a goroutine.
+	_ = w.Bind("cliqueRestart", func() string {
+		pendingMu.Lock()
+		exeURL, sumURL := pending.exeURL, pending.sumURL
+		pendingMu.Unlock()
+		if exeURL == "" || sumURL == "" {
+			return "no update is ready"
+		}
+		go func() {
+			if err := applyUpdate(exeURL, sumURL); err != nil {
+				w.Dispatch(func() {
+					w.Eval("window.__cliqueUpdateFailed(" + jsString(err.Error()) + ")")
+				})
+			}
+		}()
+		return ""
+	})
+	w.Init(updateJS)
 
 	if cfg.ServerURL == "" {
 		// Bindings are invoked on the UI thread, so the probe cannot happen
@@ -68,7 +104,31 @@ func main() {
 			go Watch(cfg)
 		}
 	}
+	go pollUpdates(w)
 	w.Run()
+}
+
+func pollUpdates(w webview2.WebView) {
+	check := func() {
+		ver, exeURL, sumURL, ok := newerRelease(Version)
+		if !ok {
+			return
+		}
+		pendingMu.Lock()
+		pending.version = ver
+		pending.exeURL = exeURL
+		pending.sumURL = sumURL
+		pendingMu.Unlock()
+		w.Dispatch(func() {
+			w.Eval("window.__cliqueUpdate(" + jsString(ver) + ")")
+		})
+	}
+	check()
+	t := time.NewTicker(30 * time.Minute)
+	defer t.Stop()
+	for range t.C {
+		check()
+	}
 }
 
 // jsString renders a Go string as a JavaScript literal safe to paste into Eval.

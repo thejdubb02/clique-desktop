@@ -30,6 +30,22 @@ change rather than once per poll.
 
 You can add it later by editing `%AppData%\CLIque\config.json`.
 
+## Updates
+
+The app updates itself, but only when you say so.
+
+It checks for a new release once after the window opens, then every half hour,
+and a small card appears in the bottom corner when there is one. Press **Restart
+now** and it downloads the new version, swaps itself out and reopens. Press
+**Later** and it goes away until the next check.
+
+Restarting is safe to do whenever you feel like it, including in the middle of
+something. Your sessions are not running in this app, they are running in tmux on
+the panel's machine, so closing this window does not interrupt anything.
+
+The check never blocks startup and never interrupts you if it fails. The download
+is verified against a checksum published with the release.
+
 ## Requirements
 
 - Windows 10 or 11 with the Edge WebView2 runtime, which is preinstalled on
