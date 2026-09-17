@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -28,27 +29,36 @@ func main() {
 		},
 	})
 	if w == nil {
+		alert("CLIque", "This needs the Microsoft Edge WebView2 Runtime, which is missing.\n\n"+
+			"Install it from https://developer.microsoft.com/microsoft-edge/webview2/ and start CLIque again.")
 		return
 	}
 	defer w.Destroy()
 
 	if cfg.ServerURL == "" {
+		// Bindings are invoked on the UI thread, so the probe cannot happen
+		// here: a five second timeout against an unreachable host would freeze
+		// the window. Validate the URL, hand back, and finish in a goroutine.
 		_ = w.Bind("saveServer", func(rawURL, token string) string {
 			u, errMsg := parseServerURL(rawURL)
 			if errMsg != "" {
 				return errMsg
 			}
-			if err := probeHealthz(u); err != nil {
-				return err.Error()
-			}
-			cfg = Config{ServerURL: u, Token: strings.TrimSpace(token)}
-			if err := Save(cfg); err != nil {
-				return err.Error()
-			}
-			if cfg.Token != "" {
-				go Watch(cfg)
-			}
-			w.Navigate(cfg.ServerURL)
+			go func() {
+				if err := probeHealthz(u); err != nil {
+					w.Dispatch(func() { w.Eval("window.cliqueFailed(" + jsString(err.Error()) + ")") })
+					return
+				}
+				next := Config{ServerURL: u, Token: strings.TrimSpace(token)}
+				if err := Save(next); err != nil {
+					w.Dispatch(func() { w.Eval("window.cliqueFailed(" + jsString(err.Error()) + ")") })
+					return
+				}
+				if next.Token != "" {
+					go Watch(next)
+				}
+				w.Dispatch(func() { w.Navigate(next.ServerURL) })
+			}()
 			return ""
 		})
 		w.SetHtml(setupHTML)
@@ -59,6 +69,15 @@ func main() {
 		}
 	}
 	w.Run()
+}
+
+// jsString renders a Go string as a JavaScript literal safe to paste into Eval.
+func jsString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return `""`
+	}
+	return string(b)
 }
 
 func parseServerURL(raw string) (string, string) {

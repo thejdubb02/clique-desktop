@@ -70,6 +70,7 @@
     margin: 1rem 0 0;
     color: var(--err);
   }
+  #err.working { color: var(--dim); }
 </style>
 <body>
 <main>
@@ -88,8 +89,18 @@
   const form = document.getElementById("f");
   const err = document.getElementById("err");
   const btn = document.getElementById("btn");
+
+  // An empty reply means the URL parsed and the panel is being checked in the
+  // background. Either the window navigates to the panel, or this comes back.
+  window.cliqueFailed = (msg) => {
+    err.classList.remove("working");
+    err.textContent = msg;
+    btn.disabled = false;
+  };
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    err.classList.remove("working");
     err.textContent = "";
     btn.disabled = true;
     try {
@@ -97,10 +108,16 @@
         document.getElementById("url").value.trim(),
         document.getElementById("token").value.trim()
       );
-      if (msg) err.textContent = msg;
+      if (msg) {
+        err.textContent = msg;
+        btn.disabled = false;
+      } else {
+        err.classList.add("working");
+        err.textContent = "Checking the panel...";
+      }
     } catch (e) {
       err.textContent = e && e.message ? e.message : String(e);
+      btn.disabled = false;
     }
-    btn.disabled = false;
   });
 </script>
