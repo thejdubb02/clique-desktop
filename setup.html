@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLIque</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1e1e1e;
+    --fg: #cccccc;
+    --dim: #8b8b8b;
+    --field: #3c3c3c;
+    --line: #333333;
+    --accent: #0078d4;
+    --on-accent: #ffffff;
+    --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  main { width: min(28rem, calc(100% - 3rem)); }
+  h1 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin: 0 0 1.5rem;
+  }
+  label {
+    display: block;
+    margin: 0 0 0.35rem;
+    color: var(--dim);
+  }
+  input {
+    width: 100%;
+    margin: 0 0 1rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--field);
+    color: var(--fg);
+    font: inherit;
+  }
+  input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .hint {
+    margin: -0.65rem 0 1.1rem;
+    color: var(--dim);
+    font-size: 0.85rem;
+  }
+  button {
+    background: var(--accent);
+    color: var(--on-accent);
+    border: 0;
+    border-radius: 4px;
+    padding: 0.55rem 1.1rem;
+    font: inherit;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  #err {
+    min-height: 1.4em;
+    margin: 1rem 0 0;
+    color: var(--err);
+  }
+</style>
+<body>
+<main>
+  <h1>Connect to your CLIque panel</h1>
+  <form id="f">
+    <label for="url">Panel URL</label>
+    <input id="url" name="url" type="text" required spellcheck="false" placeholder="https://box.tailnet.ts.net/clique/" autofocus>
+    <label for="token">API token (optional)</label>
+    <input id="token" name="token" type="text" spellcheck="false" autocomplete="off">
+    <p class="hint">Only needed for desktop notifications.</p>
+    <button type="submit" id="btn">Connect</button>
+    <p id="err" role="alert"></p>
+  </form>
+</main>
+<script>
+  const form = document.getElementById("f");
+  const err = document.getElementById("err");
+  const btn = document.getElementById("btn");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err.textContent = "";
+    btn.disabled = true;
+    try {
+      const msg = await window.saveServer(
+        document.getElementById("url").value.trim(),
+        document.getElementById("token").value.trim()
+      );
+      if (msg) err.textContent = msg;
+    } catch (e) {
+      err.textContent = e && e.message ? e.message : String(e);
+    }
+    btn.disabled = false;
+  });
+</script>

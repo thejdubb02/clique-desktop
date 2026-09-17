@@ -1,0 +1,4 @@
+dist/
+*.exe
+.clique-drops/
+.claude-images/
