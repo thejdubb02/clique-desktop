@@ -52,6 +52,20 @@ one-second loop into a five-minute one. `scripts/build.sh` is the command.
   `GET /api/state` with `Authorization: Bearer`. The app works without one,
   minus toasts.
 
+## Links go to the person's browser, and JavaScript is how
+
+WebView2 raises `NewWindowRequested` for both ways the panel opens a link, a
+`window.open` and an anchor with `target="_blank"`. go-webview2 does not surface
+that event, so before `external.js` a click on a link did nothing at all: no
+window, no error, nothing to notice. The fix is injected JavaScript that hands
+the URL to a binding, not a change to the library.
+
+**Only `http` and `https` reach `ShellExecute`.** It will launch a file path, a
+UNC path or an application protocol just as happily as a web page, and the page
+asking is one the panel rendered out of somebody's working directory. Note that
+rejecting an empty host is not the same check: `file://attacker/share/x.exe`
+has a host. `external_test.go` covers both separately for that reason.
+
 ## The tray, and the way it can trap someone
 
 `getlantern/systray` is cgo-free on Windows, which is the only reason it is here

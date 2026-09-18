@@ -75,7 +75,14 @@ func main() {
 		}()
 		return ""
 	})
+	// Bindings run on the UI thread and launching a browser is not instant,
+	// so this hands off and returns.
+	_ = w.Bind("cliqueOpenExternal", func(raw string) string {
+		go openExternal(raw)
+		return ""
+	})
 	w.Init(updateJS)
+	w.Init(externalJS)
 
 	if cfg.ServerURL == "" {
 		// Bindings are invoked on the UI thread, so the probe cannot happen

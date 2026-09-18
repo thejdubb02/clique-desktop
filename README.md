@@ -51,6 +51,12 @@ change rather than once per poll.
 
 You can add it later by editing `%AppData%\CLIque\config.json`.
 
+## Links
+
+A link you click in a session opens in your own browser, the one with your
+bookmarks and your logins, not inside this window. Only `http` and `https`
+links are handed over, so a page cannot use a link to start a program.
+
 ## The tray
 
 CLIque sits in the notification area while it runs. The tooltip carries the
