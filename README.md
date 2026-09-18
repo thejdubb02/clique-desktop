@@ -57,6 +57,13 @@ A link you click in a session opens in your own browser, the one with your
 bookmarks and your logins, not inside this window. Only `http` and `https`
 links are handed over, so a page cannot use a link to start a program.
 
+## It matches your theme
+
+The Windows title bar takes the colour of the panel's own chrome, so the window
+is one thing rather than two stacked. It follows along when you switch themes.
+Windows 11 takes the exact colour; Windows 10 has no way to be told one, so it
+gets dark or light chrome to match instead.
+
 ## The tray
 
 CLIque sits in the notification area while it runs. The tooltip carries the
@@ -74,8 +81,12 @@ stop you using the app.
 
 ## Updates
 
-**However you installed it**, CLIque checks once after the window opens and then
-every half hour, and a small card appears in the bottom corner when there is a
+**Nothing happens at startup.** Opening CLIque opens the version you have
+installed and gets on with it: it never waits on the network and never does
+anything about an update while you are trying to start.
+
+**However you installed it**, CLIque then checks a minute later and every half
+hour after that, and a small card appears in the bottom corner when there is a
 new version. Press **Restart now** and it updates and reopens. Press **Later**
 and it goes away until the next check. The check never blocks startup and never
 interrupts you when it fails: no network, a bad release or no answer at all all

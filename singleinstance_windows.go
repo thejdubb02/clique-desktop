@@ -17,10 +17,17 @@ func claimSingleInstance() bool {
 		if h != 0 {
 			_ = windows.CloseHandle(h)
 		}
+		// Only step aside for a copy that is actually on screen. A held mutex
+		// with no window behind it is a process that died badly, or one still
+		// dying after an update restart, and standing down for it leaves
+		// nothing running at all. That is how launching the app came to do
+		// nothing: the update shut the old copy down, the new one found the
+		// mutex not yet released, and exited.
 		if hwnd := findWindowByTitle("CLIque"); hwnd != 0 {
 			raiseHWND(hwnd)
+			return false
 		}
-		return false
+		return true
 	}
 	instanceMutex = h
 	return true

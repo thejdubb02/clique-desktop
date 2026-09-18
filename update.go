@@ -145,10 +145,17 @@ func newerRelease(current string) (version, exeURL, sumURL string, ok bool) {
 func packagedUpdateCommand() []string {
 	return []string{
 		"powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
-		"try { Add-AppxPackage -AppInstallerFile '" + appInstallerURL + "' -ForceTargetApplicationShutdown } " +
+		"$n = '" + packageName + "'; " +
+			// Read the family name before the install, not after. Get-AppxPackage
+			// can come back empty in the moment a package is being replaced, and
+			// an empty name built a launch path that goes nowhere, which left the
+			// app shut down by ForceTargetApplicationShutdown and nothing started
+			// in its place.
+			"$f = (Get-AppxPackage -Name $n | Select-Object -First 1).PackageFamilyName; " +
+			"try { Add-AppxPackage -AppInstallerFile '" + appInstallerURL + "' -ForceTargetApplicationShutdown } " +
 			"catch { }; " +
-			"$f = (Get-AppxPackage -Name " + packageName + ").PackageFamilyName; " +
-			"Start-Process ('shell:appsFolder\\' + $f + '!" + packageAppID + "')",
+			"if (-not $f) { $f = (Get-AppxPackage -Name $n | Select-Object -First 1).PackageFamilyName }; " +
+			"if ($f) { Start-Process ('shell:appsFolder\\' + $f + '!" + packageAppID + "') }",
 	}
 }
 

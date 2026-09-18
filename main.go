@@ -95,8 +95,13 @@ func main() {
 		go openExternal(raw)
 		return ""
 	})
+	// Caption colour is a cheap DWM call, so it stays on the UI thread.
+	_ = w.Bind("cliqueCaption", func(panel, fg int) {
+		setCaption(w, panel, fg)
+	})
 	w.Init(updateJS)
 	w.Init(externalJS)
+	w.Init(captionJS)
 
 	if cfg.ServerURL == "" {
 		// Bindings are invoked on the UI thread, so the probe cannot happen
@@ -156,6 +161,11 @@ func pollUpdates(w webview2.WebView) {
 			w.Eval("window.__cliqueUpdate(" + jsString(ver) + ")")
 		})
 	}
+	// Nothing at startup. Opening the app opens the version that is installed
+	// and does not wait on, or act on, anything to do with an update. The first
+	// check is a minute in, by which point the window has been up long enough
+	// that a card reads as news rather than as part of starting.
+	time.Sleep(time.Minute)
 	check()
 	t := time.NewTicker(30 * time.Minute)
 	defer t.Stop()

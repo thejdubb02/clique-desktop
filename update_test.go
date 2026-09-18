@@ -74,8 +74,22 @@ func TestPackagedUpdateCommand(t *testing.T) {
 	}
 	// The family name carries a hash of the signing identity. Hardcoding one
 	// would stop matching the day the key is replaced, and nothing would say so.
-	if !strings.Contains(script, "(Get-AppxPackage -Name "+packageName+").PackageFamilyName") {
+	if !strings.Contains(script, "Get-AppxPackage -Name $n") || !strings.Contains(script, "$n = '"+packageName+"'") {
 		t.Error("the package family name should be asked for, not written down")
+	}
+	// Asked for BEFORE the install. Get-AppxPackage comes back empty in the
+	// moment a package is being replaced, and an empty name built a launch path
+	// that went nowhere: the app was already shut down by
+	// ForceTargetApplicationShutdown and nothing started in its place, which is
+	// the "it never opens again" this guards against.
+	firstAsk := strings.Index(script, "PackageFamilyName")
+	install := strings.Index(script, "Add-AppxPackage")
+	if firstAsk < 0 || install < 0 || firstAsk > install {
+		t.Errorf("the family name is read after the install, not before it: %q", script)
+	}
+	// And the relaunch does not run with an empty one, which starts nothing.
+	if !strings.Contains(script, "if ($f) { Start-Process") {
+		t.Error("the relaunch is not guarded, so an empty family name starts nothing")
 	}
 	// A relaunch that names no app id starts nothing.
 	if !strings.Contains(script, "'!"+packageAppID+"'") {
