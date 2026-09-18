@@ -12,13 +12,34 @@ WebView2 runtime that Windows already ships.
 
 ## Install
 
-1. Download `CLIque.exe` from the [releases](https://github.com/thejdubb02/clique-desktop/releases).
-2. Run it. Windows may warn that the publisher is unrecognised, because the
-   binary is not code-signed yet: choose More info, then Run anyway.
-3. Enter the URL of your panel, for example
-   `https://yourbox.tailnet.ts.net/clique/` or `http://192.168.1.10:3200/`.
+Paste this into PowerShell. It trusts our signing certificate once, then installs
+CLIque properly: Start menu entry, taskbar icon, and an entry in Add or remove
+programs.
 
-That is the whole setup. The app checks the panel answers before it saves.
+```powershell
+irm https://github.com/thejdubb02/clique-desktop/releases/latest/download/install.ps1 | iex
+```
+
+The certificate step needs one administrator prompt, once per machine, because
+the package is signed with our own key rather than a certificate from a public
+authority. Every update after it is silent.
+
+After that, Windows keeps CLIque current in the background whether or not the
+app is running, and downloads only the parts that changed. Nothing in the app
+polls for updates when it is installed this way, because the operating system
+already does.
+
+On first run, enter the URL of your panel, for example
+`https://yourbox.tailnet.ts.net/clique/` or `http://192.168.1.10:3200/`. That is
+the whole setup. The app checks the panel answers before it saves.
+
+### The loose exe
+
+`CLIque.exe` is still published with every release for anyone who would rather
+not install anything. It updates itself instead: a card appears in the corner
+when a new version exists and waits for you to press Restart. It is the same
+app, just without the Start menu entry and without the operating system doing
+the updating.
 
 ### Notifications (optional)
 
@@ -47,19 +68,22 @@ stop you using the app.
 
 ## Updates
 
-The app updates itself, but only when you say so.
+**Installed from the PowerShell line above**, Windows does it. It re-reads the
+package's manifest on its own schedule, in the background, whether or not the app
+is running, and pulls only the blocks that changed. There is nothing to press and
+nothing to notice.
 
-It checks for a new release once after the window opens, then every half hour,
-and a small card appears in the bottom corner when there is one. Press **Restart
-now** and it downloads the new version, swaps itself out and reopens. Press
-**Later** and it goes away until the next check.
+**Running the loose exe**, the app does it, and only when you say so. It checks
+once after the window opens, then every half hour, and a small card appears in
+the bottom corner when there is a new version. Press **Restart now** and it
+downloads it, swaps itself out and reopens. Press **Later** and it goes away
+until the next check. The check never blocks startup, never interrupts you if it
+fails, and the download is verified against a checksum published with the
+release.
 
-Restarting is safe to do whenever you feel like it, including in the middle of
-something. Your sessions are not running in this app, they are running in tmux on
-the panel's machine, so closing this window does not interrupt anything.
-
-The check never blocks startup and never interrupts you if it fails. The download
-is verified against a checksum published with the release.
+Either way, restarting is safe whenever you feel like it, including in the middle
+of something. Your sessions are not running in this app, they are running in tmux
+on the panel's machine, so closing this window interrupts nothing.
 
 ## Requirements
 

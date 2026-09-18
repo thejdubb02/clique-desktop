@@ -104,7 +104,12 @@ func main() {
 			go Watch(cfg)
 		}
 	}
-	go pollUpdates(w)
+	// Packaged installs are updated by Windows itself, and the install
+	// directory is read only, so asking would only ever end in a card
+	// offering something that cannot be applied.
+	if !runningPackaged() {
+		go pollUpdates(w)
+	}
 	startTray(w)
 	w.Run()
 }

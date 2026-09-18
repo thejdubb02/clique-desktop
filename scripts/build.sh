@@ -10,6 +10,13 @@ VERSION="${1:-dev}"
 
 go test ./...
 
+# The icon and the file properties are a Windows resource, not something a
+# Go build produces. Without this the taskbar shows the generic application
+# icon and the SmartScreen warning has no name to show.
+go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 \
+  -o resource_windows.syso -product-version "${VERSION}" -file-version "${VERSION}" \
+  versioninfo.json
+
 # -trimpath keeps the build reproducible: without it the binary carries absolute
 # paths from whichever machine built it, two builds of identical source hash
 # differently, and the published checksum stops meaning anything verifiable.

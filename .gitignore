@@ -2,3 +2,5 @@ dist/
 *.exe
 .clique-drops/
 .claude-images/
+resource_windows.syso
+output/
