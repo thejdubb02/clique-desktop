@@ -52,6 +52,20 @@ one-second loop into a five-minute one. `scripts/build.sh` is the command.
   `GET /api/state` with `Authorization: Bearer`. The app works without one,
   minus toasts.
 
+## Bringing the window forward must not resize it
+
+`SW_RESTORE` un-maximizes a maximized window. Calling it unconditionally when
+raising the window meant anything that brought CLIque forward shrank a full
+screen window back to 1280x860, which reads as the app resizing itself for no
+reason. Check `IsIconic` first: only a minimized window needs restoring, and
+`SW_SHOW` brings back anything else, including a window hidden to the tray while
+maximized, at the size it had.
+
+Two things reach that path, and both are easy to trigger without meaning to: the
+tray's Show item, and a second launch finding the mutex already held. A packaged
+install can be launched by the Windows notification platform, so a toast the
+watcher raised is enough to count as a second launch.
+
 ## Links go to the person's browser, and JavaScript is how
 
 WebView2 raises `NewWindowRequested` for both ways the panel opens a link, a

@@ -30,6 +30,7 @@ var (
 	procShowWindow          *windows.LazyProc
 	procSetForegroundWindow *windows.LazyProc
 	procFindWindowW         *windows.LazyProc
+	procIsIconic            *windows.LazyProc
 
 	prevWndProc uintptr
 	wndProcCB   uintptr
@@ -43,7 +44,9 @@ func loadUser32() bool {
 		procShowWindow = user32.NewProc("ShowWindow")
 		procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
 		procFindWindowW = user32.NewProc("FindWindowW")
-		if procSetWindowLongPtrW.Find() != nil ||
+		procIsIconic = user32.NewProc("IsIconic")
+		if procIsIconic.Find() != nil ||
+			procSetWindowLongPtrW.Find() != nil ||
 			procCallWindowProcW.Find() != nil ||
 			procShowWindow.Find() != nil ||
 			procSetForegroundWindow.Find() != nil ||
@@ -63,8 +66,17 @@ func raiseHWND(hwnd windows.HWND) {
 	if hwnd == 0 || !loadUser32() {
 		return
 	}
-	_, _, _ = procShowWindow.Call(uintptr(hwnd), swShow)
-	_, _, _ = procShowWindow.Call(uintptr(hwnd), swRestore)
+	// SW_RESTORE un-maximizes a maximized window. Calling it unconditionally is
+	// why bringing the window forward shrank a full screen one back to 1280x860,
+	// which reads as the app resizing itself for no reason. Only a window that is
+	// actually minimized needs restoring; SW_SHOW on any other, including one
+	// hidden to the tray while maximized, brings it back at the size it had.
+	iconic, _, _ := procIsIconic.Call(uintptr(hwnd))
+	if iconic != 0 {
+		_, _, _ = procShowWindow.Call(uintptr(hwnd), swRestore)
+	} else {
+		_, _, _ = procShowWindow.Call(uintptr(hwnd), swShow)
+	}
 	_, _, _ = procSetForegroundWindow.Call(uintptr(hwnd))
 }
 
