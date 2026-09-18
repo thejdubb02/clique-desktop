@@ -23,6 +23,19 @@ go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 \
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
   go build -trimpath -ldflags="-H windowsgui -s -w -X main.Version=${VERSION}" -o dist/CLIque.exe .
 
+# The window asks for its icon by resource id 1, and nothing at runtime says so
+# when it is missing: the window simply has no icon, which is only visible to
+# someone looking at a taskbar. Windows shipped that way once already.
+if ! command -v wrestool >/dev/null; then
+  echo "need icoutils for the icon check: apt-get install icoutils" >&2
+  exit 1
+fi
+# -l and grep, not -x: extracting a resource that is not there still exits 0.
+wrestool -l dist/CLIque.exe 2>/dev/null | grep -q -- '--type=14 --name=1 --language' || {
+  echo "no icon group 1 in dist/CLIque.exe, so the window would have no icon" >&2
+  exit 1
+}
+
 sha256sum dist/CLIque.exe > dist/CLIque.exe.sha256
 
 ls -lh dist/CLIque.exe | awk '{print "dist/CLIque.exe", $5}'

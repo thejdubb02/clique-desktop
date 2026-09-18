@@ -37,6 +37,12 @@ func main() {
 			Title:  "CLIque",
 			Width:  1280,
 			Height: 860,
+			// The icon the window, the taskbar button and alt-tab all use,
+			// by resource id. Leaving this at zero does not fall back to the
+			// embedded icon: go-webview2's default branch calls LoadImageW
+			// with the system icon width where the image type belongs, which
+			// fails, and the window ends up with no icon at all.
+			IconId: 1,
 		},
 	})
 	if w == nil {
