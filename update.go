@@ -172,7 +172,7 @@ func applyPackagedUpdate() error {
 	// released by the operating system anyway. Doing it first is cheap and
 	// removes the window where a restart races our own teardown.
 	releaseSingleInstance()
-	if err := exec.Command(cmd[0], cmd[1:]...).Start(); err != nil {
+	if err := startDetached(cmd); err != nil {
 		claimSingleInstance()
 		return err
 	}
