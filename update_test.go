@@ -44,65 +44,38 @@ func TestIsNewerGarbageDoesNotPanic(t *testing.T) {
 // run on a machine nobody is watching, so the shape of it is worth pinning.
 // Getting it wrong does not fail loudly: it starts nothing, or starts the old
 // version, and the app looks like it simply never updates.
-func TestPackagedUpdateCommand(t *testing.T) {
-	cmd := packagedUpdateCommand()
-	if cmd[0] != "powershell" {
-		t.Fatalf("not powershell: %q", cmd[0])
-	}
-	script := cmd[len(cmd)-1]
+func TestPackagedRestartCommand(t *testing.T) {
+	script := packagedRestartCommand()[len(packagedRestartCommand())-1]
 
-	// -NonInteractive matters: a prompt on a hidden window waits forever.
-	for _, flag := range []string{"-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command"} {
-		found := false
-		for _, a := range cmd {
-			if a == flag {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("missing %q", flag)
-		}
+	// It must not install anything. Replacing the package from inside the app
+	// being replaced is what failed four ways, always ending with nothing
+	// running, and this is the guard against somebody putting it back.
+	if strings.Contains(script, "Add-AppxPackage") {
+		t.Error("the restart installs a package again, which is what kept stranding people")
 	}
-
-	// Without this Windows refuses to replace a package that is running, and
-	// the update silently does nothing at all.
-	if !strings.Contains(script, "-ForceTargetApplicationShutdown") {
-		t.Error("nothing would shut the running app down, so the install would be refused")
+	if strings.Contains(script, "ForceTargetApplicationShutdown") {
+		t.Error("the restart still shuts the app down itself")
 	}
-	if !strings.Contains(script, appInstallerURL) {
-		t.Error("the manifest url is not in the script")
-	}
-	// The family name carries a hash of the signing identity. Hardcoding one
+	// The family name carries a hash of the signing identity, so hardcoding one
 	// would stop matching the day the key is replaced, and nothing would say so.
 	if !strings.Contains(script, "Get-AppxPackage -Name $n") || !strings.Contains(script, "$n = '"+packageName+"'") {
 		t.Error("the package family name should be asked for, not written down")
 	}
-	// Asked for BEFORE the install. Get-AppxPackage comes back empty in the
-	// moment a package is being replaced, and an empty name built a launch path
-	// that went nowhere: the app was already shut down by
-	// ForceTargetApplicationShutdown and nothing started in its place, which is
-	// the "it never opens again" this guards against.
-	firstAsk := strings.Index(script, "PackageFamilyName")
-	install := strings.Index(script, "Add-AppxPackage")
-	if firstAsk < 0 || install < 0 || firstAsk > install {
-		t.Errorf("the family name is read after the install, not before it: %q", script)
-	}
-	// And the relaunch does not run with an empty one, which starts nothing.
+	// An empty family name builds a path that starts nothing.
 	if !strings.Contains(script, "if ($f) { Start-Process") {
-		t.Error("the relaunch is not guarded, so an empty family name starts nothing")
+		t.Error("the relaunch is not guarded on having a family name")
 	}
-	// A relaunch that names no app id starts nothing.
+	// This process has to be gone before the new one runs, or the single
+	// instance check finds the old copy and the new one exits.
+	if !strings.Contains(script, "Start-Sleep") {
+		t.Error("nothing waits for this copy to exit, so the relaunch would exit instead")
+	}
 	if !strings.Contains(script, "'!"+packageAppID+"'") {
 		t.Errorf("no app id in the relaunch: %q", script)
 	}
 	// One backslash in the script itself. Two in the Go literal, and it is an
-	// easy place to end up with a doubled one that PowerShell then cannot resolve.
+	// easy place to end up with a doubled one PowerShell cannot resolve.
 	if !strings.Contains(script, `shell:appsFolder\`) || strings.Contains(script, `shell:appsFolder\\`) {
 		t.Errorf("appsFolder path is not singly escaped: %q", script)
-	}
-	// A failed install must not stop the relaunch, or a bad release leaves
-	// somebody with nothing running.
-	if !strings.Contains(script, "catch { }") {
-		t.Error("an install failure would take the relaunch with it")
 	}
 }

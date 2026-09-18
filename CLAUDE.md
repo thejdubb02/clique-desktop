@@ -129,6 +129,23 @@ taskbar shows the generic application icon and the SmartScreen warning has no
 name to put in the dialog. go-webview2 finds it because `goversioninfo` also
 registers the icon group under 32512, which is the id its default path loads.
 
+## The packaged build does not install its own updates
+
+Decided 2026-09-18, after four separate failures in one evening, all ending with
+the app shut down and nothing running: an unconditional `SW_RESTORE`, a mutex
+with no window behind it, a family name read too late, a helper killed with the
+app it was replacing, and then the packaging tool's own entry point. Windows
+already keeps an MSIX current through the manifest's background task. The button
+now does only the part Windows does not: get you onto the version that is
+installed.
+
+If Windows has not staged the new one yet, restarting lands on the same version
+and the card comes back. A wasted click is a better failure than no application.
+
+**Do not put `Add-AppxPackage` back in this app.** `TestPackagedRestartCommand`
+fails if anyone does. The loose exe keeps its own updater, which has never been
+the problem.
+
 ## Starting must never depend on an update, or on another copy
 
 **The fourth one was not our code at all.** Conveyor makes `updatecheck.exe` the

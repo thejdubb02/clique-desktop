@@ -96,11 +96,17 @@ and it goes away until the next check. The check never blocks startup and never
 interrupts you when it fails: no network, a bad release or no answer at all all
 mean the same thing, which is no card.
 
-What the button does underneath depends on how you installed it, and you should
-not have to care. Installed from the PowerShell line above, it hands the package
-to Windows, which replaces it and starts it again. Running the loose exe, it
+What the button does depends on how you installed it. Running the loose exe, it
 downloads the new binary, checks it against a checksum published with the
-release, and swaps itself out.
+release, and swaps itself out. Installed as a package, it only restarts: Windows
+is what installs the new version, in the background, and the restart is how you
+get onto it once it has. If it has not yet, you land on the same version and the
+card comes back later.
+
+That split is deliberate. Replacing an installed package from inside the app
+being replaced failed four separate ways on 2026-09-18, every one of them ending
+with the app shut down and nothing running. A wasted click is a better failure
+than no application.
 
 **Installed from the PowerShell line above, Windows also does it on its own.**
 It re-reads the package's manifest in the background whether or not the app is

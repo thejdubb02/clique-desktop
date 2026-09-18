@@ -13,7 +13,12 @@
     if (later) later.disabled = false;
   };
 
-  window.__cliqueUpdate = function (version) {
+  // Whether this copy was installed as a package. The two say different things:
+  // an installed copy is updated by Windows and only needs restarting, a loose
+  // exe downloads and swaps itself.
+  var packaged = false;
+  window.__cliqueUpdate = function (version, isPackaged) {
+    packaged = !!isPackaged;
     const existing = document.getElementById(ROOT_ID);
     if (existing) existing.remove();
 
@@ -57,7 +62,9 @@
     const body = document.createElement("div");
     body.id = "clique-update-body";
     body.style.cssText = "font:13px/1.45 'Segoe UI',system-ui,sans-serif;margin:0 0 12px;color:#b3b3b3;";
-    body.textContent = "Restart when you like. Your sessions keep running, they live on the server, so nothing is lost.";
+    body.textContent = packaged
+      ? "Windows installs it in the background. Restart when you like to pick it up. Your sessions keep running, they live on the server, so nothing is lost."
+      : "Restart when you like. Your sessions keep running, they live on the server, so nothing is lost.";
     root.appendChild(body);
 
     const err = document.createElement("div");
@@ -87,7 +94,7 @@
     restart.addEventListener("click", async function () {
       later.disabled = true;
       restart.disabled = true;
-      restart.textContent = "Downloading...";
+      restart.textContent = packaged ? "Restarting..." : "Downloading...";
       err.textContent = "";
       try {
         const msg = await window.cliqueRestart();

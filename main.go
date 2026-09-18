@@ -77,7 +77,11 @@ func main() {
 		go func() {
 			var err error
 			if packaged {
-				err = applyPackagedUpdate()
+				// Only a restart. Windows installs the package itself.
+				if err = restartPackaged(); err == nil {
+					w.Dispatch(func() { w.Terminate() })
+					return
+				}
 			} else {
 				err = applyUpdate(exeURL, sumURL)
 			}
@@ -142,6 +146,8 @@ func main() {
 	// can take now; the background task remains the answer for anyone who
 	// ignores it.
 	go pollUpdates(w)
+	installWindowHooks(w)
+	restoreBox(w, cfg.Window)
 	startTray(w)
 	w.Run()
 }
@@ -157,8 +163,10 @@ func pollUpdates(w webview2.WebView) {
 		pending.exeURL = exeURL
 		pending.sumURL = sumURL
 		pendingMu.Unlock()
+		packaged := runningPackaged()
 		w.Dispatch(func() {
-			w.Eval("window.__cliqueUpdate(" + jsString(ver) + ")")
+			w.Eval("window.__cliqueUpdate(" + jsString(ver) + ", " +
+				map[bool]string{true: "true", false: "false"}[packaged] + ")")
 		})
 	}
 	// Nothing at startup. Opening the app opens the version that is installed

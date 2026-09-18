@@ -24,10 +24,6 @@ const latestURL = "https://api.github.com/repos/thejdubb02/clique-desktop/releas
 const exeAsset = "CLIque.exe"
 const sumAsset = "CLIque.exe.sha256"
 
-// The manifest Windows reads to find the current package. It always names the
-// newest one, which is why the packaged path needs no asset URL of its own.
-const appInstallerURL = "https://github.com/thejdubb02/clique-desktop/releases/latest/download/clique.appinstaller"
-
 // The package name and the application id inside it, both "Clique". Windows
 // needs the first to find the installed package and the second to start it.
 const packageName = "Clique"
@@ -130,49 +126,37 @@ func newerRelease(current string) (version, exeURL, sumURL string, ok bool) {
 	return tag, exeURL, sumURL, true
 }
 
-// packagedUpdateCommand is what replaces an MSIX install with the published
-// version and starts it again.
+// packagedRestartCommand is what starts the app again after this copy quits.
 //
-// Windows will not replace a package while it is running, which is what
-// ForceTargetApplicationShutdown is for. If the install fails the app is
-// started again anyway rather than leaving somebody with nothing running, and
-// because the version will not have changed, the next check offers the update
-// again. A failure that corrects itself beats a marker file nobody reads.
+// It no longer installs anything. Replacing the package from inside the app
+// being replaced failed four different ways on 2026-09-18, every one of them
+// ending with the app shut down and nothing running, and the last two were
+// invisible from the Linux box this is built on. Windows already keeps an MSIX
+// current through the manifest's background task, so the button's job is the
+// part Windows does not do: get you onto the version that is installed.
 //
-// The package family name is asked for rather than written down: it carries a
-// hash of the signing identity, so a hardcoded one would quietly stop matching
-// the day that key is replaced.
-func packagedUpdateCommand() []string {
+// If Windows has not staged the new one yet, restarting lands on the same
+// version and the card comes back. That is a wasted click. It is not somebody
+// left with no application.
+//
+// The family name carries a hash of the signing identity, so it is asked for
+// rather than written down, and the launch is guarded on having one. The delay
+// is for this process to finish exiting: the single instance check would
+// otherwise find the old copy still holding the mutex.
+func packagedRestartCommand() []string {
 	return []string{
 		"powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
 		"$n = '" + packageName + "'; " +
-			// Read the family name before the install, not after. Get-AppxPackage
-			// can come back empty in the moment a package is being replaced, and
-			// an empty name built a launch path that goes nowhere, which left the
-			// app shut down by ForceTargetApplicationShutdown and nothing started
-			// in its place.
 			"$f = (Get-AppxPackage -Name $n | Select-Object -First 1).PackageFamilyName; " +
-			"try { Add-AppxPackage -AppInstallerFile '" + appInstallerURL + "' -ForceTargetApplicationShutdown } " +
-			"catch { }; " +
-			"if (-not $f) { $f = (Get-AppxPackage -Name $n | Select-Object -First 1).PackageFamilyName }; " +
+			"Start-Sleep -Milliseconds 2500; " +
 			"if ($f) { Start-Process ('shell:appsFolder\\' + $f + '!" + packageAppID + "') }",
 	}
 }
 
-// applyPackagedUpdate pulls the published package in and restarts into it.
-//
-// It deliberately does not go through the package's own launcher. That launcher
-// only checks for an update when Conveyor is set to aggressive, which we are
-// not, because aggressive makes every cold start wait on the network before the
-// window appears. Run any other way it just launches the app, so the button
-// would have restarted without updating.
-func applyPackagedUpdate() error {
-	cmd := packagedUpdateCommand()
-	// Add-AppxPackage shuts this process down itself, so the mutex would be
-	// released by the operating system anyway. Doing it first is cheap and
-	// removes the window where a restart races our own teardown.
+// restartPackaged queues the relaunch and hands back. The caller quits.
+func restartPackaged() error {
 	releaseSingleInstance()
-	if err := startDetached(cmd); err != nil {
+	if err := startDetached(packagedRestartCommand()); err != nil {
 		claimSingleInstance()
 		return err
 	}

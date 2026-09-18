@@ -10,6 +10,9 @@ import (
 type Config struct {
 	ServerURL string `json:"server_url"`
 	Token     string `json:"token"`
+	// Where the window was last left. Restarting for an update should not
+	// cost somebody the size they chose.
+	Window WindowBox `json:"window"`
 }
 
 func dir() (string, error) {

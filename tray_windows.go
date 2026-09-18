@@ -56,10 +56,6 @@ func onReady(w webview2.WebView) {
 		}
 	}()
 	trayReady.Store(true)
-	// Only now is closing the window safe to turn into hiding it. Installed
-	// any earlier and a tray that failed to appear would leave a hidden
-	// window with nothing left to bring it back or shut it down.
-	w.Dispatch(func() { hideOnClose(w) })
 }
 
 func setTrayCount(waiting int) {

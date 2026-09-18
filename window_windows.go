@@ -96,9 +96,14 @@ func findWindowByTitle(title string) windows.HWND {
 	return windows.HWND(hwnd)
 }
 
-func hideOnClose(w webview2.WebView) {
-	// Closing would destroy the window and quit. Hide it so the tray can restore it.
-	// If subclassing fails, the existing quit-on-close behaviour is left alone.
+// installWindowHooks subclasses the window, for two jobs: remembering where it
+// was left, and turning a close into a hide once there is a tray to get it back
+// from. Installed as soon as the window exists, because the shape has to be
+// saved whether or not a tray ever appears; whether a close hides is decided
+// per message, not here.
+func installWindowHooks(w webview2.WebView) {
+	// If subclassing fails, closing keeps its old behaviour and nothing is
+	// remembered. Neither is worth an error box.
 	defer func() { recover() }()
 	if !loadUser32() {
 		return
@@ -117,7 +122,15 @@ func hideOnClose(w webview2.WebView) {
 }
 
 func ourProc(hwnd, msg, wParam, lParam uintptr) uintptr {
-	if msg == wmClose && !trayQuitting() {
+	// Where the window was left, kept across restarts. Not on every WM_SIZE:
+	// a drag emits one of those per frame. The end of a drag and a maximize
+	// are the two moments the shape actually changed.
+	if msg == wmExitSizeMove || (msg == wmSize && wParam == sizeMaximized) || msg == wmClose {
+		rememberBox(windows.HWND(hwnd))
+	}
+	// Hiding is only safe once the tray exists to bring it back. Without one,
+	// a close quits, which is what it did before any of this.
+	if msg == wmClose && trayReady.Load() && !trayQuitting() {
 		_, _, _ = procShowWindow.Call(hwnd, swHide)
 		return 0
 	}
