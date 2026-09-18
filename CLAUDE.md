@@ -129,6 +129,37 @@ taskbar shows the generic application icon and the SmartScreen warning has no
 name to put in the dialog. go-webview2 finds it because `goversioninfo` also
 registers the icon group under 32512, which is the id its default path loads.
 
+## Starting must never depend on an update, or on another copy
+
+Three ways this app came to not open at all. All three end identically, with
+the app shut down and nothing running, and all three are easy to reintroduce.
+
+- **A held mutex with no window behind it used to make a second launch exit.**
+  That is a process that died badly, or one still dying after an update
+  restart, and standing down for it leaves nothing running. Step aside only for
+  a copy that is actually on screen; otherwise open a window. Two windows beat
+  none.
+- **The packaged restart read the package family name after replacing the
+  package.** `Get-AppxPackage` comes back empty in that moment, the launch path
+  built from it goes nowhere, and `ForceTargetApplicationShutdown` has already
+  closed the app. Read it first, and guard the relaunch on having one.
+- **The helper doing the replacing was a child of the app being replaced.**
+  `ForceTargetApplicationShutdown` terminates the whole app container, and a
+  process this app started is inside it, so the helper was killed part way
+  through its own work. `startDetached` breaks it out of the job first and falls
+  back to a plain detached start where the job forbids that, because worse odds
+  beat no helper at all. `detachFlagOrder` writes the flag values out so the
+  ordering can be tested anywhere; the behaviour it protects can only be seen on
+  Windows.
+
+And nothing about updates happens at startup. The first check is a minute after
+the window is up. Justin's instruction, 2026-09-18: open the installed version,
+check in the background, and let a small card offer the restart.
+
+If this path strands somebody a fourth time, take the button out of the packaged
+build and let Windows do the updating alone. Slower, and it cannot end with
+nothing running.
+
 ## Updating
 
 Modelled on Rampart, deliberately, because it is the behaviour Justin already
