@@ -131,6 +131,17 @@ registers the icon group under 32512, which is the id its default path loads.
 
 ## Starting must never depend on an update, or on another copy
 
+**The fourth one was not our code at all.** Conveyor makes `updatecheck.exe` the
+package's entry point by default, as an escape hatch for an update that needs a
+full reinstall. For a JVM app it knows what to launch afterwards. For a plain
+native binary it does not, so opening the installed app ran the update check,
+showed a "checking for updates" window, found nothing to do and exited without
+ever starting CLIque. `windows.manifests.msix.use-update-escape-hatch = false`
+in `conveyor.conf` makes our own exe the entry point. Check it after any Conveyor
+upgrade: `unzip -p output/*.msix AppxManifest.xml | grep Executable=` must say
+`CLIque.exe`.
+
+
 Three ways this app came to not open at all. All three end identically, with
 the app shut down and nothing running, and all three are easy to reintroduce.
 
