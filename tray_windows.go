@@ -34,7 +34,12 @@ func startTray(w webview2.WebView) {
 func onReady(w webview2.WebView) {
 	systray.SetIcon(trayIcon)
 	systray.SetTitle("CLIque")
-	systray.SetTooltip("CLIque")
+	systray.SetTooltip(trayTooltip(Version, 0))
+	// Not clickable: it is a label. Nothing else shows which version is
+	// running, because the window belongs to the panel and reports the
+	// panel's version rather than this app's.
+	verItem := systray.AddMenuItem(trayTooltip(Version, 0), "The version running now")
+	verItem.Disable()
 	showItem := systray.AddMenuItem("Show CLIque", "Show CLIque")
 	quitItem := systray.AddMenuItem("Quit CLIque", "Quit CLIque")
 	go func() {
@@ -61,7 +66,7 @@ func setTrayCount(waiting int) {
 	if !trayReady.Load() {
 		return
 	}
-	systray.SetTooltip(trayTooltip(waiting))
+	systray.SetTooltip(trayTooltip(Version, waiting))
 }
 
 func trayQuitting() bool {

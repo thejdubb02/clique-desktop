@@ -67,8 +67,12 @@ gets dark or light chrome to match instead.
 ## The tray
 
 CLIque sits in the notification area while it runs. The tooltip carries the
-number of sessions waiting on you, from the same poll that raises the toasts, so
+version you are running and the number of sessions waiting on you, from the same poll that raises the toasts, so
 it needs the token to say anything other than the app's name.
+
+The version is on the icon's menu too, as a label. It is the only place it
+appears: the window belongs to the panel, and the number in the panel's own
+corner is the panel's version, not this app's.
 
 Closing the window puts it back in the tray rather than quitting, so toasts keep
 arriving. Click the tray icon for **Show CLIque** to bring it back and **Quit
