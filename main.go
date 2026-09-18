@@ -105,6 +105,7 @@ func main() {
 		}
 	}
 	go pollUpdates(w)
+	startTray(w)
 	w.Run()
 }
 

@@ -69,3 +69,24 @@ func TestNewAlerts(t *testing.T) {
 		}
 	})
 }
+
+func TestNeedingCountWatch(t *testing.T) {
+	if n := needingCount([]Session{{Signal: "waiting"}}); n != 1 {
+		t.Fatalf("waiting = %d, want 1", n)
+	}
+	if n := needingCount([]Session{{Signal: "error"}}); n != 1 {
+		t.Fatalf("error = %d, want 1", n)
+	}
+	if n := needingCount([]Session{{Signal: ""}}); n != 0 {
+		t.Fatalf("empty signal = %d, want 0", n)
+	}
+	mix := []Session{
+		{Signal: "waiting"},
+		{Signal: "error"},
+		{Signal: ""},
+		{Signal: "ok"},
+	}
+	if n := needingCount(mix); n != 2 {
+		t.Fatalf("mix = %d, want 2", n)
+	}
+}

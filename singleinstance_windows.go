@@ -17,6 +17,9 @@ func claimSingleInstance() bool {
 		if h != 0 {
 			_ = windows.CloseHandle(h)
 		}
+		if hwnd := findWindowByTitle("CLIque"); hwnd != 0 {
+			raiseHWND(hwnd)
+		}
 		return false
 	}
 	instanceMutex = h

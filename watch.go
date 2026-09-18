@@ -36,6 +36,16 @@ func newAlerts(prev map[string]string, sessions []Session) (alerts []Session, ne
 	return alerts, next
 }
 
+func needingCount(sessions []Session) int {
+	n := 0
+	for _, s := range sessions {
+		if s.Signal == "waiting" || s.Signal == "error" {
+			n++
+		}
+	}
+	return n
+}
+
 func Watch(cfg Config) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	endpoint := strings.TrimRight(cfg.ServerURL, "/") + "/api/state"
@@ -54,6 +64,7 @@ func Watch(cfg Config) {
 				if ok {
 					var alerts []Session
 					alerts, prev = newAlerts(prev, payload.Sessions)
+					setTrayCount(needingCount(payload.Sessions))
 					for _, s := range alerts {
 						body := s.Saying
 						if body == "" {

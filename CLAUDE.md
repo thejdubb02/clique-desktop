@@ -52,6 +52,30 @@ one-second loop into a five-minute one. `scripts/build.sh` is the command.
   `GET /api/state` with `Authorization: Bearer`. The app works without one,
   minus toasts.
 
+## The tray, and the way it can trap someone
+
+`getlantern/systray` is cgo-free on Windows, which is the only reason it is here
+at all. Three things about it are not obvious:
+
+- **Its message loop needs its own locked thread.** `systray.Run` creates a
+  window and pumps messages, Windows message queues are per thread, and an
+  unlocked goroutine can migrate threads mid loop. So: a goroutine that calls
+  `runtime.LockOSThread()` first. It cannot share the main goroutine, which
+  belongs to the webview.
+- **Close-to-tray is installed from `onReady`, never before it.** The window
+  procedure is subclassed so WM_CLOSE hides instead of destroying. Install that
+  while the tray is still only hoped for and a tray that never appears leaves a
+  hidden window with nothing to restore it and no way to quit short of Task
+  Manager. The tray has to exist before hiding is a safe thing to do.
+- **`GWLP_WNDPROC` is -4, and a negative constant cannot be converted to
+  `uintptr`.** It goes through a variable, where the conversion sign extends.
+  As a constant it is a compile error that `go vet` reports and `go build`
+  does not.
+
+Everything about the tray fails silently. No tray means an ordinary window that
+quits when closed, which is what the app did before and is never worth an error
+box.
+
 ## Updating
 
 Modelled on Rampart, deliberately, because it is the behaviour Justin already

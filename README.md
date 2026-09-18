@@ -30,6 +30,21 @@ change rather than once per poll.
 
 You can add it later by editing `%AppData%\CLIque\config.json`.
 
+## The tray
+
+CLIque sits in the notification area while it runs. The tooltip carries the
+number of sessions waiting on you, from the same poll that raises the toasts, so
+it needs the token to say anything other than the app's name.
+
+Closing the window puts it back in the tray rather than quitting, so toasts keep
+arriving. Click the tray icon for **Show CLIque** to bring it back and **Quit
+CLIque** to actually stop it. Launching CLIque again while it is already running
+brings the existing window forward instead of doing nothing.
+
+If the tray cannot start for any reason, the app runs as an ordinary window and
+closing it quits, exactly as it did before. Nothing about the tray is allowed to
+stop you using the app.
+
 ## Updates
 
 The app updates itself, but only when you say so.
