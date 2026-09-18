@@ -24,6 +24,15 @@ const latestURL = "https://api.github.com/repos/thejdubb02/clique-desktop/releas
 const exeAsset = "CLIque.exe"
 const sumAsset = "CLIque.exe.sha256"
 
+// The manifest Windows reads to find the current package. It always names the
+// newest one, which is why the packaged path needs no asset URL of its own.
+const appInstallerURL = "https://github.com/thejdubb02/clique-desktop/releases/latest/download/clique.appinstaller"
+
+// The package name and the application id inside it, both "Clique". Windows
+// needs the first to find the installed package and the second to start it.
+const packageName = "Clique"
+const packageAppID = "Clique"
+
 // isNewer compares dotted versions a segment at a time, splitting on '.' and
 // '-'. A segment that is not a number counts as 0 rather than panicking: a
 // tag published by hand must never be able to crash the app.
@@ -106,17 +115,61 @@ func newerRelease(current string) (version, exeURL, sumURL string, ok bool) {
 			sumURL = a.URL
 		}
 	}
-	if exeURL == "" || sumURL == "" {
-		return "", "", "", false
-	}
 	// This app downloads something and then executes it, so where it downloads
 	// from is a trust boundary and not a detail. Asset URLs always live on
 	// github.com; anything else means the API answer was not what we think it
-	// was, and the right response is to offer no update at all.
+	// was, and the right response is to offer no loose binary at all.
+	//
+	// Missing or untrusted assets are emptied rather than failing the whole
+	// check, because a packaged install updates from the manifest and never
+	// touches them. Failing here would have meant a release that dropped the
+	// loose exe silently stopped offering updates to everybody.
 	if !githubAsset(exeURL) || !githubAsset(sumURL) {
-		return "", "", "", false
+		exeURL, sumURL = "", ""
 	}
 	return tag, exeURL, sumURL, true
+}
+
+// packagedUpdateCommand is what replaces an MSIX install with the published
+// version and starts it again.
+//
+// Windows will not replace a package while it is running, which is what
+// ForceTargetApplicationShutdown is for. If the install fails the app is
+// started again anyway rather than leaving somebody with nothing running, and
+// because the version will not have changed, the next check offers the update
+// again. A failure that corrects itself beats a marker file nobody reads.
+//
+// The package family name is asked for rather than written down: it carries a
+// hash of the signing identity, so a hardcoded one would quietly stop matching
+// the day that key is replaced.
+func packagedUpdateCommand() []string {
+	return []string{
+		"powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
+		"try { Add-AppxPackage -AppInstallerFile '" + appInstallerURL + "' -ForceTargetApplicationShutdown } " +
+			"catch { }; " +
+			"$f = (Get-AppxPackage -Name " + packageName + ").PackageFamilyName; " +
+			"Start-Process ('shell:appsFolder\\' + $f + '!" + packageAppID + "')",
+	}
+}
+
+// applyPackagedUpdate pulls the published package in and restarts into it.
+//
+// It deliberately does not go through the package's own launcher. That launcher
+// only checks for an update when Conveyor is set to aggressive, which we are
+// not, because aggressive makes every cold start wait on the network before the
+// window appears. Run any other way it just launches the app, so the button
+// would have restarted without updating.
+func applyPackagedUpdate() error {
+	cmd := packagedUpdateCommand()
+	// Add-AppxPackage shuts this process down itself, so the mutex would be
+	// released by the operating system anyway. Doing it first is cheap and
+	// removes the window where a restart races our own teardown.
+	releaseSingleInstance()
+	if err := exec.Command(cmd[0], cmd[1:]...).Start(); err != nil {
+		claimSingleInstance()
+		return err
+	}
+	return nil
 }
 
 func githubAsset(raw string) bool {

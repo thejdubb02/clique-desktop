@@ -61,13 +61,27 @@ func main() {
 	// download and swap in a goroutine.
 	_ = w.Bind("cliqueRestart", func() string {
 		pendingMu.Lock()
-		exeURL, sumURL := pending.exeURL, pending.sumURL
+		version, exeURL, sumURL := pending.version, pending.exeURL, pending.sumURL
 		pendingMu.Unlock()
-		if exeURL == "" || sumURL == "" {
+		if version == "" {
 			return "no update is ready"
 		}
+		// A packaged install replaces itself through the manifest Windows
+		// already knows about. A loose exe downloads the published binary,
+		// checks it against its own checksum and swaps itself out. Same
+		// button, and from here the only difference is which one can run.
+		packaged := runningPackaged()
+		if !packaged && (exeURL == "" || sumURL == "") {
+			return "this release has no download for it"
+		}
 		go func() {
-			if err := applyUpdate(exeURL, sumURL); err != nil {
+			var err error
+			if packaged {
+				err = applyPackagedUpdate()
+			} else {
+				err = applyUpdate(exeURL, sumURL)
+			}
+			if err != nil {
 				w.Dispatch(func() {
 					w.Eval("window.__cliqueUpdateFailed(" + jsString(err.Error()) + ")")
 				})
@@ -117,12 +131,12 @@ func main() {
 			go Watch(cfg)
 		}
 	}
-	// Packaged installs are updated by Windows itself, and the install
-	// directory is read only, so asking would only ever end in a card
-	// offering something that cannot be applied.
-	if !runningPackaged() {
-		go pollUpdates(w)
-	}
+	// Both kinds of install check, because Windows' own background task runs
+	// on a schedule nobody can predict and will happily leave a running app a
+	// version behind for a day. The card is what makes an update something you
+	// can take now; the background task remains the answer for anyone who
+	// ignores it.
+	go pollUpdates(w)
 	startTray(w)
 	w.Run()
 }

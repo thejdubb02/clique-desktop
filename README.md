@@ -25,9 +25,9 @@ the package is signed with our own key rather than a certificate from a public
 authority. Every update after it is silent.
 
 After that, Windows keeps CLIque current in the background whether or not the
-app is running, and downloads only the parts that changed. Nothing in the app
-polls for updates when it is installed this way, because the operating system
-already does.
+app is running, and downloads only the parts that changed. CLIque also watches
+for a new version itself and offers it, so you are never waiting on Windows to
+get round to it.
 
 On first run, enter the URL of your panel, for example
 `https://yourbox.tailnet.ts.net/clique/` or `http://192.168.1.10:3200/`. That is
@@ -36,10 +36,10 @@ the whole setup. The app checks the panel answers before it saves.
 ### The loose exe
 
 `CLIque.exe` is still published with every release for anyone who would rather
-not install anything. It updates itself instead: a card appears in the corner
-when a new version exists and waits for you to press Restart. It is the same
-app, just without the Start menu entry and without the operating system doing
-the updating.
+not install anything. The same card appears when a new version exists, and
+pressing Restart downloads the new binary and swaps it in. It is the same app,
+just without the Start menu entry and without Windows keeping it current in the
+background as well.
 
 ### Notifications (optional)
 
@@ -74,18 +74,25 @@ stop you using the app.
 
 ## Updates
 
-**Installed from the PowerShell line above**, Windows does it. It re-reads the
-package's manifest on its own schedule, in the background, whether or not the app
-is running, and pulls only the blocks that changed. There is nothing to press and
-nothing to notice.
+**However you installed it**, CLIque checks once after the window opens and then
+every half hour, and a small card appears in the bottom corner when there is a
+new version. Press **Restart now** and it updates and reopens. Press **Later**
+and it goes away until the next check. The check never blocks startup and never
+interrupts you when it fails: no network, a bad release or no answer at all all
+mean the same thing, which is no card.
 
-**Running the loose exe**, the app does it, and only when you say so. It checks
-once after the window opens, then every half hour, and a small card appears in
-the bottom corner when there is a new version. Press **Restart now** and it
-downloads it, swaps itself out and reopens. Press **Later** and it goes away
-until the next check. The check never blocks startup, never interrupts you if it
-fails, and the download is verified against a checksum published with the
-release.
+What the button does underneath depends on how you installed it, and you should
+not have to care. Installed from the PowerShell line above, it hands the package
+to Windows, which replaces it and starts it again. Running the loose exe, it
+downloads the new binary, checks it against a checksum published with the
+release, and swaps itself out.
+
+**Installed from the PowerShell line above, Windows also does it on its own.**
+It re-reads the package's manifest in the background whether or not the app is
+running, and pulls only the blocks that changed. That is the backstop for anyone
+who never presses the button, not the only way an update arrives: it runs on a
+schedule nobody can predict and will happily leave a running app a version
+behind for a day.
 
 Either way, restarting is safe whenever you feel like it, including in the middle
 of something. Your sessions are not running in this app, they are running in tmux
@@ -105,9 +112,8 @@ It is a viewer, not a second copy of the panel. It does not run tmux, it cannot
 host sessions, and it has no opinion about which CLI you are running. Everything
 you see is the panel's own interface.
 
-Not in this version: a tray icon, auto-update, deep links, or starting the panel
-for you. Mac and Linux builds are possible from the same code but are not built
-yet.
+Not in this version: deep links, or starting the panel for you. Mac and Linux
+builds are possible from the same code but are not built yet.
 
 ## Build it yourself
 
