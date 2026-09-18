@@ -18,6 +18,27 @@ scripts/build.sh "$VERSION"
 
 conveyor -Kapp.version="$VERSION" make site
 
+# Windows runs the manifest's background update task on a schedule of its own,
+# which in practice can be the better part of a day: reported on 2026-09-18 as
+# the app never updating by itself. OnLaunch is what makes an update actually
+# arrive. UpdateBlocksActivation stays false, so the app opens straight away and
+# Windows fetches behind it; the new version is what opens next time.
+#
+# Conveyor does not expose this setting, so it is added to the file it writes.
+AI=output/clique.appinstaller
+python3 - "$AI" <<'ONLAUNCH'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+if "<OnLaunch" not in s:
+    old = "<AutomaticBackgroundTask />"
+    assert s.count(old) == 1, "AutomaticBackgroundTask not found in " + p
+    new = ('<OnLaunch HoursBetweenUpdateChecks="0" UpdateBlocksActivation="false" ShowPrompt="false" />\n'
+           "        " + old)
+    open(p, "w", encoding="utf-8").write(s.replace(old, new))
+ONLAUNCH
+grep -q "<OnLaunch" "$AI" || { echo "the manifest would never check on launch" >&2; exit 1; }
+
 # The package must start CLIque, not the packaging tool's update checker.
 # Conveyor makes updatecheck.exe the entry point by default and only knows how
 # to hand off to a JVM app afterwards, so for this binary it launched nothing at

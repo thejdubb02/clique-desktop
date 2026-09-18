@@ -1,6 +1,35 @@
 (function () {
   const ROOT_ID = "clique-update-root";
 
+  /* A cursor walking a row of cells, rather than a spinner.
+   *
+   * Indeterminate on purpose: neither path can say how far along it is.
+   * Windows does not report package progress to us, and the loose exe's
+   * download is a few megabytes usually gone before a number would have meant
+   * anything. Every colour comes from the panel's own theme, so it is the
+   * right one on a light theme too, and CSS does the moving: three blocks
+   * changing opacity is nothing next to a pane running a dozen terminals.
+   *
+   * prefers-reduced-motion gets a slower walk, not a still image, because a
+   * still loader reads as a hung one. */
+  function cursorLoader(dim, accent) {
+    var wrap = document.createElement("div");
+    wrap.className = "clique-update-cells";
+    wrap.setAttribute("aria-hidden", "true");
+    wrap.style.cssText = "margin-top:14px;display:flex;gap:4px;align-items:center;";
+    for (var i = 0; i < 5; i++) {
+      var cell = document.createElement("span");
+      cell.style.cssText = "display:block;width:9px;height:14px;border-radius:2px;" +
+        "background:" + accent + ";opacity:.18;" +
+        "animation:clique-update-cell 1.15s " + (i * 0.11).toFixed(2) + "s ease-in-out infinite;";
+      wrap.appendChild(cell);
+    }
+    var trail = document.createElement("span");
+    trail.style.cssText = "margin-left:6px;font:12px/1 'Segoe UI',system-ui,sans-serif;color:" + dim + ";";
+    wrap.appendChild(trail);
+    return wrap;
+  }
+
   window.__cliqueUpdateFailed = function (msg) {
     const err = document.getElementById("clique-update-err");
     const restart = document.getElementById("clique-update-restart");
@@ -17,8 +46,27 @@
   // an installed copy is updated by Windows and only needs restarting, a loose
   // exe downloads and swaps itself.
   var packaged = false;
+  /* The card sits inside the panel's page, so it can read the panel's own
+     theme rather than being told it. The fallbacks are the old fixed colours,
+     for the first-run setup page, which has no theme to read. */
+  function themed(name, fallback) {
+    try {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+      v = (v || "").trim();
+      return v || fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
   window.__cliqueUpdate = function (version, isPackaged) {
     packaged = !!isPackaged;
+    var cPanel = themed("--panel", "#1e1e1e");
+    var cFg = themed("--fg", "#e6e6e6");
+    var cDim = themed("--dim", "#9a9a9a");
+    var cLine = themed("--line", "#3a3a3a");
+    var cAccent = themed("--accent", "#0078d4");
+    var cOnAccent = themed("--on-accent", "#ffffff");
     const existing = document.getElementById(ROOT_ID);
     if (existing) existing.remove();
 
@@ -33,9 +81,9 @@
       "width:min(320px,92vw)",
       "box-sizing:border-box",
       "padding:16px 16px 14px",
-      "background:#1e1e1e",
-      "color:#e6e6e6",
-      "border:1px solid #3a3a3a",
+      "background:" + cPanel,
+      "color:" + cFg,
+      "border:1px solid " + cLine,
       "border-radius:12px",
       "box-shadow:0 12px 40px rgba(0,0,0,0.45)",
       "font:14px/1.45 'Segoe UI',system-ui,sans-serif",
@@ -48,6 +96,9 @@
     style.textContent =
       "#" + ROOT_ID + "{opacity:0;transform:translateY(8px);transition:opacity 160ms ease,transform 160ms ease;}" +
       "#" + ROOT_ID + ".clique-update-in{opacity:1;transform:none;}" +
+      "@keyframes clique-update-cell{0%,70%,100%{opacity:.18;}35%{opacity:1;}}" +
+      "@media (prefers-reduced-motion:reduce){#" + ROOT_ID + "{transition:none;}" +
+      "#" + ROOT_ID + " .clique-update-cells span{animation-duration:2.6s;}}" +
       "@media (prefers-reduced-motion: reduce){" +
       "#" + ROOT_ID + ",#" + ROOT_ID + ".clique-update-in{opacity:1;transform:none;transition:none;}" +
       "}";
@@ -80,7 +131,8 @@
     later.id = "clique-update-later";
     later.type = "button";
     later.textContent = "Later";
-    later.style.cssText = "font:600 13px/1.3 'Segoe UI',system-ui,sans-serif;padding:8px 12px;margin:0;border-radius:6px;cursor:pointer;background:transparent;color:#cccccc;border:1px solid #555555;";
+    later.style.cssText = "font:600 13px/1.3 'Segoe UI',system-ui,sans-serif;padding:8px 12px;margin:0;" +
+      "border-radius:6px;cursor:pointer;background:transparent;color:" + cDim + ";border:1px solid " + cLine + ";";
     later.addEventListener("click", function () {
       root.remove();
     });
@@ -90,12 +142,16 @@
     restart.id = "clique-update-restart";
     restart.type = "button";
     restart.textContent = "Restart now";
-    restart.style.cssText = "font:600 13px/1.3 'Segoe UI',system-ui,sans-serif;padding:8px 12px;margin:0;border-radius:6px;cursor:pointer;background:#0078d4;color:#ffffff;border:1px solid #0078d4;";
+    restart.style.cssText = "font:600 13px/1.3 'Segoe UI',system-ui,sans-serif;padding:8px 12px;margin:0;" +
+      "border-radius:6px;cursor:pointer;background:" + cAccent + ";color:" + cOnAccent + ";border:1px solid " + cAccent + ";";
     restart.addEventListener("click", async function () {
       later.disabled = true;
       restart.disabled = true;
-      restart.textContent = packaged ? "Restarting..." : "Downloading...";
       err.textContent = "";
+      heading.textContent = (packaged ? "Restarting CLIque " : "Installing CLIque ") + version;
+      body.textContent = "CLIque will close and open again by itself.";
+      row.remove();
+      root.appendChild(cursorLoader(cDim, cAccent));
       try {
         const msg = await window.cliqueRestart();
         if (msg) window.__cliqueUpdateFailed(msg);
