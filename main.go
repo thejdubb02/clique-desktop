@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -106,6 +105,7 @@ func main() {
 	_ = w.Bind("cliqueCaption", func(panel, fg int) {
 		setCaption(w, panel, fg)
 	})
+	w.Init(shellInitJS(Version))
 	w.Init(updateJS)
 	w.Init(externalJS)
 	w.Init(captionJS)
@@ -183,15 +183,6 @@ func pollUpdates(w webview2.WebView) {
 	for range t.C {
 		check()
 	}
-}
-
-// jsString renders a Go string as a JavaScript literal safe to paste into Eval.
-func jsString(s string) string {
-	b, err := json.Marshal(s)
-	if err != nil {
-		return `""`
-	}
-	return string(b)
 }
 
 func parseServerURL(raw string) (string, string) {
