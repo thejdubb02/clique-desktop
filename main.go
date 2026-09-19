@@ -31,6 +31,9 @@ func main() {
 
 	cfg, _ := Load()
 
+	// Before the window exists, on the thread the edge package already locked.
+	enableFileDrops()
+
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		DataPath: WebViewDataPath(),
 		WindowOptions: webview2.WindowOptions{
