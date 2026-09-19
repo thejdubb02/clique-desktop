@@ -143,20 +143,33 @@ func newerRelease(current string) (version, exeURL, sumURL string, ok bool) {
 // rather than written down, and the launch is guarded on having one. The delay
 // is for this process to finish exiting: the single instance check would
 // otherwise find the old copy still holding the mutex.
-func packagedRestartCommand() []string {
+func packagedRestartCommand(pid int) []string {
+	// Waits for *this* process by id rather than guessing at a duration. The
+	// guess was 2500ms and it is the reason Restart could leave nothing
+	// running: the new copy starts, the single instance check finds the old
+	// one still holding the mutex, and the new copy exits immediately. How
+	// long a quit takes is not a constant, so it is not written as one.
+	//
+	// Then the launch is retried, because the package is momentarily not
+	// enumerable while Windows commits an update that was staged in the
+	// background, which is exactly the moment Restart is pressed.
 	return []string{
 		"powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
 		"$n = '" + packageName + "'; " +
+			"$p = " + strconv.Itoa(pid) + "; " +
+			"for ($i = 0; $i -lt 80 -and (Get-Process -Id $p -ErrorAction SilentlyContinue); $i++) " +
+			"{ Start-Sleep -Milliseconds 250 }; " +
+			"for ($i = 0; $i -lt 20; $i++) { " +
 			"$f = (Get-AppxPackage -Name $n | Select-Object -First 1).PackageFamilyName; " +
-			"Start-Sleep -Milliseconds 2500; " +
-			"if ($f) { Start-Process ('shell:appsFolder\\' + $f + '!" + packageAppID + "') }",
+			"if ($f) { Start-Process ('shell:appsFolder\\' + $f + '!" + packageAppID + "'); exit }; " +
+			"Start-Sleep -Milliseconds 500 }",
 	}
 }
 
 // restartPackaged queues the relaunch and hands back. The caller quits.
 func restartPackaged() error {
 	releaseSingleInstance()
-	if err := startDetached(packagedRestartCommand()); err != nil {
+	if err := startDetached(packagedRestartCommand(os.Getpid())); err != nil {
 		claimSingleInstance()
 		return err
 	}

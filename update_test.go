@@ -45,7 +45,8 @@ func TestIsNewerGarbageDoesNotPanic(t *testing.T) {
 // Getting it wrong does not fail loudly: it starts nothing, or starts the old
 // version, and the app looks like it simply never updates.
 func TestPackagedRestartCommand(t *testing.T) {
-	script := packagedRestartCommand()[len(packagedRestartCommand())-1]
+	cmd := packagedRestartCommand(4242)
+	script := cmd[len(cmd)-1]
 
 	// It must not install anything. Replacing the package from inside the app
 	// being replaced is what failed four ways, always ending with nothing
@@ -66,9 +67,25 @@ func TestPackagedRestartCommand(t *testing.T) {
 		t.Error("the relaunch is not guarded on having a family name")
 	}
 	// This process has to be gone before the new one runs, or the single
-	// instance check finds the old copy and the new one exits.
+	// instance check finds the old copy and the new one exits. A duration is
+	// a guess; the process id is not. 2500ms was the guess, and it is why
+	// Restart could leave nothing running.
+	if !strings.Contains(script, "Get-Process -Id $p") || !strings.Contains(script, "$p = 4242") {
+		t.Error("the relaunch does not wait for this exact process to exit")
+	}
 	if !strings.Contains(script, "Start-Sleep") {
 		t.Error("nothing waits for this copy to exit, so the relaunch would exit instead")
+	}
+	// The wait has to end even if the process never does, or a failed quit
+	// leaves a hidden PowerShell alive for as long as the machine is up.
+	if !strings.Contains(script, "$i -lt 80") {
+		t.Error("the wait for this process is unbounded")
+	}
+	// Windows commits a background-staged update when the app closes, and the
+	// package is briefly not enumerable while it does. One attempt lands in
+	// that window and starts nothing.
+	if !strings.Contains(script, "for ($i = 0; $i -lt 20; $i++)") {
+		t.Error("the relaunch is a single attempt, so it fails silently mid-update")
 	}
 	if !strings.Contains(script, "'!"+packageAppID+"'") {
 		t.Errorf("no app id in the relaunch: %q", script)
