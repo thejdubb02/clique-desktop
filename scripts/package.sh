@@ -1,54 +1,51 @@
 #!/usr/bin/env bash
-# Build the Windows package Justin actually installs: an MSIX that Windows keeps
-# current in the background, plus the certificate and the one-line PowerShell
-# installer that trusts it. Cross-built from Linux, same as the exe.
+# Build, sign and package the Windows distribution: the loose CLIque.exe (what
+# the in-app updater downloads) and CLIque-Setup.exe (an NSIS installer for a
+# first install, with a Start Menu entry and a real uninstaller). Cross-built
+# from Linux, no Windows machine, no paid tooling: NSIS's makensis and
+# osslsigncode are both free and both apt packages.
 #
-#   scripts/package.sh 0.3.0
+#   scripts/package.sh 0.3.14
 #
-# The version is given once and reaches both the binary and the package, because
-# a package whose manifest disagrees with the exe inside it updates on a
-# schedule nobody can explain.
+# Signing certificate/key: generated once with openssl, self-signed (no CA, so
+# no cost, and no renewal to track — see CLAUDE.md). Windows still runs its
+# own separate SmartScreen reputation check on a first download regardless of
+# signing, which a self-signed cert cannot clear; that is expected, and it is
+# a one-time click on first install only, never on an update.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 VERSION="${1:?usage: package.sh <version>}"
 
+CERT="${CLIQUE_SIGNING_CERT:-/etc/clique-desktop/signing/codesign.pem}"
+KEY="${CLIQUE_SIGNING_KEY:-/etc/clique-desktop/signing/codesign.key}"
+[ -f "$CERT" ] && [ -f "$KEY" ] || {
+  echo "no signing cert/key at $CERT / $KEY" >&2
+  exit 1
+}
+
 scripts/build.sh "$VERSION"
 
-conveyor -Kapp.version="$VERSION" make site
+sign() {
+  osslsigncode sign -certs "$CERT" -key "$KEY" \
+    -n "CLIque" -i "https://useclique.dev" \
+    -t http://timestamp.digicert.com \
+    -in "$1" -out "$1.signed"
+  mv "$1.signed" "$1"
+}
 
-# Windows runs the manifest's background update task on a schedule of its own,
-# which in practice can be the better part of a day: reported on 2026-09-18 as
-# the app never updating by itself. OnLaunch is what makes an update actually
-# arrive. UpdateBlocksActivation stays false, so the app opens straight away and
-# Windows fetches behind it; the new version is what opens next time.
-#
-# Conveyor does not expose this setting, so it is added to the file it writes.
-AI=output/clique.appinstaller
-python3 - "$AI" <<'ONLAUNCH'
-import sys
-p = sys.argv[1]
-s = open(p, encoding="utf-8").read()
-if "<OnLaunch" not in s:
-    old = "<AutomaticBackgroundTask />"
-    assert s.count(old) == 1, "AutomaticBackgroundTask not found in " + p
-    new = ('<OnLaunch HoursBetweenUpdateChecks="0" UpdateBlocksActivation="false" ShowPrompt="false" />\n'
-           "        " + old)
-    open(p, "w", encoding="utf-8").write(s.replace(old, new))
-ONLAUNCH
-grep -q "<OnLaunch" "$AI" || { echo "the manifest would never check on launch" >&2; exit 1; }
+sign dist/CLIque.exe
 
-# The package must start CLIque, not the packaging tool's update checker.
-# Conveyor makes updatecheck.exe the entry point by default and only knows how
-# to hand off to a JVM app afterwards, so for this binary it launched nothing at
-# all. Turned off in conveyor.conf, and checked here because a Conveyor upgrade
-# could put the default back without anything saying so.
-MSIX="$(ls -1 output/*.msix | head -1)"
-ENTRY="$(unzip -p "$MSIX" AppxManifest.xml | grep -oE 'Executable="[^"]*"' | head -1)"
-if [ "$ENTRY" != 'Executable="CLIque.exe"' ]; then
-  echo "the package would start $ENTRY instead of CLIque.exe" >&2
-  exit 1
-fi
+makensis -DVERSION="$VERSION" \
+  -DSRC="$(pwd)/dist/CLIque.exe" \
+  -DOUT="$(pwd)/dist/CLIque-Setup.exe" \
+  installer.nsi
 
-ls -1 output/
+sign dist/CLIque-Setup.exe
+
+# Recomputed after signing: the published checksum has to match the bytes
+# actually downloaded, and signing changes those bytes.
+sha256sum dist/CLIque.exe | awk '{print $1, "CLIque.exe"}' OFS='  ' > dist/CLIque.exe.sha256
+
+ls -lh dist/

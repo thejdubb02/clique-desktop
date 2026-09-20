@@ -42,10 +42,6 @@
     if (later) later.disabled = false;
   };
 
-  // Whether this copy was installed as a package. The two say different things:
-  // an installed copy is updated by Windows and only needs restarting, a loose
-  // exe downloads and swaps itself.
-  var packaged = false;
   /* The card sits inside the panel's page, so it can read the panel's own
      theme rather than being told it. The fallbacks are the old fixed colours,
      for the first-run setup page, which has no theme to read. */
@@ -59,8 +55,7 @@
     }
   }
 
-  window.__cliqueUpdate = function (version, isPackaged) {
-    packaged = !!isPackaged;
+  window.__cliqueUpdate = function (version) {
     var cPanel = themed("--panel", "#1e1e1e");
     var cFg = themed("--fg", "#e6e6e6");
     var cDim = themed("--dim", "#9a9a9a");
@@ -113,9 +108,7 @@
     const body = document.createElement("div");
     body.id = "clique-update-body";
     body.style.cssText = "font:13px/1.45 'Segoe UI',system-ui,sans-serif;margin:0 0 12px;color:#b3b3b3;";
-    body.textContent = packaged
-      ? "Windows installs it in the background. Restart when you like to pick it up. Your sessions keep running, they live on the server, so nothing is lost."
-      : "Restart when you like. Your sessions keep running, they live on the server, so nothing is lost.";
+    body.textContent = "Restart when you like. Your sessions keep running, they live on the server, so nothing is lost.";
     root.appendChild(body);
 
     const err = document.createElement("div");
@@ -148,7 +141,7 @@
       later.disabled = true;
       restart.disabled = true;
       err.textContent = "";
-      heading.textContent = (packaged ? "Restarting CLIque " : "Installing CLIque ") + version;
+      heading.textContent = "Installing CLIque " + version;
       body.textContent = "CLIque will close and open again by itself.";
       row.remove();
       root.appendChild(cursorLoader(cDim, cAccent));

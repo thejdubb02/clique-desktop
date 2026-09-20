@@ -65,8 +65,8 @@ func main() {
 		defer pendingMu.Unlock()
 		return pending.version
 	})
-	// Bindings run on the UI thread: capture the URLs and return, then
-	// download and swap in a goroutine.
+	// Bindings run on the UI thread: capture the URLs and return, then swap
+	// (or, failing that, download first) in a goroutine.
 	_ = w.Bind("cliqueRestart", func() string {
 		pendingMu.Lock()
 		version, exeURL, sumURL := pending.version, pending.exeURL, pending.sumURL
@@ -74,26 +74,11 @@ func main() {
 		if version == "" {
 			return "no update is ready"
 		}
-		// A packaged install replaces itself through the manifest Windows
-		// already knows about. A loose exe downloads the published binary,
-		// checks it against its own checksum and swaps itself out. Same
-		// button, and from here the only difference is which one can run.
-		packaged := runningPackaged()
-		if !packaged && (exeURL == "" || sumURL == "") {
+		if exeURL == "" || sumURL == "" {
 			return "this release has no download for it"
 		}
 		go func() {
-			var err error
-			if packaged {
-				// Only a restart. Windows installs the package itself.
-				if err = restartPackaged(); err == nil {
-					w.Dispatch(func() { w.Terminate() })
-					return
-				}
-			} else {
-				err = applyStagedOrDownload(exeURL, sumURL)
-			}
-			if err != nil {
+			if err := applyStagedOrDownload(exeURL, sumURL); err != nil {
 				w.Dispatch(func() {
 					w.Eval("window.__cliqueUpdateFailed(" + jsString(err.Error()) + ")")
 				})
@@ -149,11 +134,6 @@ func main() {
 			go Watch(cfg)
 		}
 	}
-	// Both kinds of install check, because Windows' own background task runs
-	// on a schedule nobody can predict and will happily leave a running app a
-	// version behind for a day. The card is what makes an update something you
-	// can take now; the background task remains the answer for anyone who
-	// ignores it.
 	go pollUpdates(w)
 	installWindowHooks(w)
 	restoreBox(w, cfg.Window)
@@ -164,23 +144,19 @@ func main() {
 func pollUpdates(w webview2.WebView) {
 	check := func() {
 		ver, exeURL, sumURL, ok := newerRelease(Version)
-		if !ok {
+		if !ok || exeURL == "" || sumURL == "" {
 			return
 		}
-		packaged := runningPackaged()
-		// A loose exe is fully ours to fetch, so stage it silently in the
-		// background and only say anything once a restart would be instant.
-		// Windows stages a packaged install on its own; there is nothing
-		// here to download for that case.
-		if !packaged && exeURL != "" && sumURL != "" {
-			exe, err := os.Executable()
-			if err != nil {
-				return
-			}
-			if !verifyStaged(exe) {
-				if err := stageUpdate(exe, exeURL, sumURL); err != nil {
-					return // stays quiet; the next poll tries again
-				}
+		// Fetched and verified in the background, well before anyone asks:
+		// the card only appears once a restart would be an instant rename,
+		// not a wait on the network.
+		exe, err := os.Executable()
+		if err != nil {
+			return
+		}
+		if !verifyStaged(exe) {
+			if err := stageUpdate(exe, exeURL, sumURL); err != nil {
+				return // stays quiet; the next poll tries again
 			}
 		}
 		pendingMu.Lock()
@@ -189,8 +165,7 @@ func pollUpdates(w webview2.WebView) {
 		pending.sumURL = sumURL
 		pendingMu.Unlock()
 		w.Dispatch(func() {
-			w.Eval("window.__cliqueUpdate(" + jsString(ver) + ", " +
-				map[bool]string{true: "true", false: "false"}[packaged] + ")")
+			w.Eval("window.__cliqueUpdate(" + jsString(ver) + ")")
 		})
 	}
 	// Nothing at startup. Opening the app opens the version that is installed

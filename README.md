@@ -12,22 +12,15 @@ WebView2 runtime that Windows already ships.
 
 ## Install
 
-Paste this into PowerShell. It trusts our signing certificate once, then installs
-CLIque properly: Start menu entry, taskbar icon, and an entry in Add or remove
-programs.
+Download `CLIque-Setup.exe` from the
+[latest release](https://github.com/thejdubb02/clique-desktop/releases/latest)
+and run it. No admin prompt: it installs to your own user profile, adds a Start
+menu entry and an uninstaller, and opens CLIque when it's done.
 
-```powershell
-irm https://github.com/thejdubb02/clique-desktop/releases/latest/download/install.ps1 | iex
-```
-
-The certificate step needs one administrator prompt, once per machine, because
-the package is signed with our own key rather than a certificate from a public
-authority. Every update after it is silent.
-
-After that, Windows keeps CLIque current in the background whether or not the
-app is running, and downloads only the parts that changed. CLIque also watches
-for a new version itself and offers it, so you are never waiting on Windows to
-get round to it.
+The installer and the app are signed with our own certificate rather than a
+paid one, so Windows SmartScreen shows an "unknown publisher" warning the
+first time. Click **More info → Run anyway**. That is the only click this ever
+asks for: it does not come back on an update.
 
 On first run, enter the URL of your panel, for example
 `https://yourbox.tailnet.ts.net/clique/` or `http://192.168.1.10:3200/`. That is
@@ -35,11 +28,9 @@ the whole setup. The app checks the panel answers before it saves.
 
 ### The loose exe
 
-`CLIque.exe` is still published with every release for anyone who would rather
-not install anything. The same card appears when a new version exists, and
-pressing Restart downloads the new binary and swaps it in. It is the same app,
-just without the Start menu entry and without Windows keeping it current in the
-background as well.
+`CLIque.exe` is also published with every release for anyone who would rather
+not install anything. It is the exact same binary the installer puts down, just
+without the Start menu entry and the uninstaller.
 
 ### Notifications (optional)
 
@@ -89,35 +80,24 @@ stop you using the app.
 installed and gets on with it: it never waits on the network and never does
 anything about an update while you are trying to start.
 
-**However you installed it**, CLIque then checks a minute later and every half
-hour after that, and a small card appears in the bottom corner when there is a
-new version. Press **Restart now** and it updates and reopens. Press **Later**
-and it goes away until the next check. The check never blocks startup and never
-interrupts you when it fails: no network, a bad release or no answer at all all
-mean the same thing, which is no card.
+CLIque then checks a minute later and every half hour after that. When a new
+version exists it downloads and verifies it quietly in the background, and only
+then does a small card appear in the bottom corner, so by the time you see it a
+restart is an instant swap, not a wait. Press **Restart now** and it reopens on
+the new version. Press **Later** and it goes away until the next check.
 
-What the button does depends on how you installed it. Running the loose exe, it
-downloads the new binary, checks it against a checksum published with the
-release, and swaps itself out. Installed as a package, it only restarts: Windows
-is what installs the new version, in the background, and the restart is how you
-get onto it once it has. If it has not yet, you land on the same version and the
-card comes back later.
+**You don't have to press anything.** The next time CLIque closes and reopens,
+by any means, it applies whatever was already downloaded and verified on its
+own. The button just makes it happen sooner.
 
-That split is deliberate. Replacing an installed package from inside the app
-being replaced failed four separate ways on 2026-09-18, every one of them ending
-with the app shut down and nothing running. A wasted click is a better failure
-than no application.
+The check never blocks startup and never interrupts you when it fails: no
+network, a bad release, or no answer at all mean the same thing, which is no
+card.
 
-**Installed from the PowerShell line above, Windows also does it on its own.**
-It re-reads the package's manifest in the background whether or not the app is
-running, and pulls only the blocks that changed. That is the backstop for anyone
-who never presses the button, not the only way an update arrives: it runs on a
-schedule nobody can predict and will happily leave a running app a version
-behind for a day.
-
-Either way, restarting is safe whenever you feel like it, including in the middle
-of something. Your sessions are not running in this app, they are running in tmux
-on the panel's machine, so closing this window interrupts nothing.
+Either way, restarting is safe whenever you feel like it, including in the
+middle of something. Your sessions are not running in this app, they are
+running in tmux on the panel's machine, so closing this window interrupts
+nothing.
 
 ## Requirements
 
@@ -145,6 +125,14 @@ toolchain needed:
 ./scripts/build.sh          # writes dist/CLIque.exe
 go test ./...               # runs anywhere
 ```
+
+`scripts/package.sh <version>` does the full release build: the exe above,
+signed, plus `CLIque-Setup.exe` built with NSIS (`apt install nsis`) and signed
+with [osslsigncode](https://github.com/mtrojnar/osslsigncode) (`apt install
+osslsigncode`). Both free, both run on Linux. It needs a code-signing
+cert/key; generate a self-signed one with `openssl req -x509 -newkey rsa:3072
+-nodes -addext extendedKeyUsage=codeSigning ...` and point `CLIQUE_SIGNING_CERT`
+/ `CLIQUE_SIGNING_KEY` at it, or leave them unset to use the estate's own key.
 
 ## Licence
 

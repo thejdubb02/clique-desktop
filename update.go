@@ -24,11 +24,6 @@ const latestURL = "https://api.github.com/repos/thejdubb02/clique-desktop/releas
 const exeAsset = "CLIque.exe"
 const sumAsset = "CLIque.exe.sha256"
 
-// The package name and the application id inside it, both "Clique". Windows
-// needs the first to find the installed package and the second to start it.
-const packageName = "Clique"
-const packageAppID = "Clique"
-
 // isNewer compares dotted versions a segment at a time, splitting on '.' and
 // '-'. A segment that is not a number counts as 0 rather than panicking: a
 // tag published by hand must never be able to crash the app.
@@ -114,66 +109,12 @@ func newerRelease(current string) (version, exeURL, sumURL string, ok bool) {
 	// This app downloads something and then executes it, so where it downloads
 	// from is a trust boundary and not a detail. Asset URLs always live on
 	// github.com; anything else means the API answer was not what we think it
-	// was, and the right response is to offer no loose binary at all.
-	//
-	// Missing or untrusted assets are emptied rather than failing the whole
-	// check, because a packaged install updates from the manifest and never
-	// touches them. Failing here would have meant a release that dropped the
-	// loose exe silently stopped offering updates to everybody.
+	// was, and the right response is to offer no update at all rather than
+	// trust an answer that does not look like our own release process.
 	if !githubAsset(exeURL) || !githubAsset(sumURL) {
 		exeURL, sumURL = "", ""
 	}
 	return tag, exeURL, sumURL, true
-}
-
-// packagedRestartCommand is what starts the app again after this copy quits.
-//
-// It no longer installs anything. Replacing the package from inside the app
-// being replaced failed four different ways on 2026-09-18, every one of them
-// ending with the app shut down and nothing running, and the last two were
-// invisible from the Linux box this is built on. Windows already keeps an MSIX
-// current through the manifest's background task, so the button's job is the
-// part Windows does not do: get you onto the version that is installed.
-//
-// If Windows has not staged the new one yet, restarting lands on the same
-// version and the card comes back. That is a wasted click. It is not somebody
-// left with no application.
-//
-// The family name carries a hash of the signing identity, so it is asked for
-// rather than written down, and the launch is guarded on having one. The delay
-// is for this process to finish exiting: the single instance check would
-// otherwise find the old copy still holding the mutex.
-func packagedRestartCommand(pid int) []string {
-	// Waits for *this* process by id rather than guessing at a duration. The
-	// guess was 2500ms and it is the reason Restart could leave nothing
-	// running: the new copy starts, the single instance check finds the old
-	// one still holding the mutex, and the new copy exits immediately. How
-	// long a quit takes is not a constant, so it is not written as one.
-	//
-	// Then the launch is retried, because the package is momentarily not
-	// enumerable while Windows commits an update that was staged in the
-	// background, which is exactly the moment Restart is pressed.
-	return []string{
-		"powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
-		"$n = '" + packageName + "'; " +
-			"$p = " + strconv.Itoa(pid) + "; " +
-			"for ($i = 0; $i -lt 80 -and (Get-Process -Id $p -ErrorAction SilentlyContinue); $i++) " +
-			"{ Start-Sleep -Milliseconds 250 }; " +
-			"for ($i = 0; $i -lt 20; $i++) { " +
-			"$f = (Get-AppxPackage -Name $n | Select-Object -First 1).PackageFamilyName; " +
-			"if ($f) { Start-Process ('shell:appsFolder\\' + $f + '!" + packageAppID + "'); exit }; " +
-			"Start-Sleep -Milliseconds 500 }",
-	}
-}
-
-// restartPackaged queues the relaunch and hands back. The caller quits.
-func restartPackaged() error {
-	releaseSingleInstance()
-	if err := startDetached(packagedRestartCommand(os.Getpid())); err != nil {
-		claimSingleInstance()
-		return err
-	}
-	return nil
 }
 
 func githubAsset(raw string) bool {
