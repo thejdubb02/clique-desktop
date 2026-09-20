@@ -181,11 +181,18 @@ func githubAsset(raw string) bool {
 	return err == nil && u.Scheme == "https" && u.Host == "github.com"
 }
 
-func applyUpdate(exeURL, sumURL string) error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
+// stagedPaths is where a background download lands: the binary itself, and a
+// sidecar holding the digest it was verified against. The sidecar is what
+// lets a later process — the next cold start, not the one that downloaded
+// it — trust the file without hitting the network again.
+func stagedPaths(exe string) (newPath, sumPath string) {
+	return exe + ".new", exe + ".new.sha256"
+}
+
+// stageUpdate downloads and verifies a release without touching the running
+// binary, so a later restart is a rename instead of a download. Called from
+// the background poll, well before anyone asks to update.
+func stageUpdate(exe, exeURL, sumURL string) error {
 	sumBody, err := httpGet(sumURL, 15*time.Second)
 	if err != nil {
 		return err
@@ -195,7 +202,7 @@ func applyUpdate(exeURL, sumURL string) error {
 		return err
 	}
 
-	newPath := exe + ".new"
+	newPath, sumPath := stagedPaths(exe)
 	got, err := downloadHashed(exeURL, newPath)
 	if err != nil {
 		os.Remove(newPath)
@@ -208,15 +215,74 @@ func applyUpdate(exeURL, sumURL string) error {
 		os.Remove(newPath)
 		return fmt.Errorf("download did not match its checksum")
 	}
+	if err := os.WriteFile(sumPath, []byte(got), 0644); err != nil {
+		os.Remove(newPath)
+		return err
+	}
+	return nil
+}
 
+// verifyStaged re-hashes a staged download against its sidecar. A fresh
+// process trusts nothing it did not check itself: the file on disk could be
+// a leftover from a crashed download or a release that got pulled.
+func verifyStaged(exe string) bool {
+	newPath, sumPath := stagedPaths(exe)
+	want, err := os.ReadFile(sumPath)
+	if err != nil {
+		return false
+	}
+	f, err := os.Open(newPath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return false
+	}
+	return hex.EncodeToString(h.Sum(nil)) == strings.TrimSpace(string(want))
+}
+
+// dropStaged removes a staged download and its sidecar: it either failed to
+// verify or has already been swapped into place.
+func dropStaged(exe string) {
+	newPath, sumPath := stagedPaths(exe)
+	os.Remove(newPath)
+	os.Remove(sumPath)
+}
+
+// swapInStaged moves an already-verified download into the running binary's
+// place. Windows will not let you overwrite a running exe, but it will let
+// you rename one out of the way first.
+func swapInStaged(exe string) error {
+	newPath, sumPath := stagedPaths(exe)
 	oldPath := exe + ".old"
 	if err := os.Rename(exe, oldPath); err != nil {
-		os.Remove(newPath)
 		return err
 	}
 	if err := os.Rename(newPath, exe); err != nil {
 		os.Rename(oldPath, exe)
-		os.Remove(newPath)
+		return err
+	}
+	os.Remove(sumPath)
+	return nil
+}
+
+// applyStagedOrDownload is the click path: swap in whatever the background
+// poll already staged, which should be instant, or download now if nothing
+// is staged yet, so a click never does nothing.
+func applyStagedOrDownload(exeURL, sumURL string) error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if !verifyStaged(exe) {
+		if err := stageUpdate(exe, exeURL, sumURL); err != nil {
+			return err
+		}
+	}
+	if err := swapInStaged(exe); err != nil {
+		dropStaged(exe)
 		return err
 	}
 
@@ -234,7 +300,31 @@ func applyUpdate(exeURL, sumURL string) error {
 	return nil
 }
 
-// cleanupOld removes the previous binary left behind by applyUpdate.
+// applyPendingUpdateIfStaged is the plain-restart path: if an earlier run
+// finished staging an update before anyone closed the app, closing and
+// reopening CLIque is enough on its own, no click required. Runs before the
+// single-instance mutex is claimed, so there is nothing to release here.
+func applyPendingUpdateIfStaged() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	if !verifyStaged(exe) {
+		dropStaged(exe) // a crashed download, or a release that got pulled
+		return
+	}
+	if err := swapInStaged(exe); err != nil {
+		return // keep running the old binary; the next poll tries again
+	}
+	if err := exec.Command(exe).Start(); err == nil {
+		os.Exit(0)
+	}
+	// The swap already happened even though the relaunch failed. This
+	// process is still the old version in memory, but the file on disk is
+	// the new one, so the next restart — by any means — picks it up.
+}
+
+// cleanupOld removes the previous binary left behind by a swap.
 // It cannot be done at update time: the old binary is still running then.
 func cleanupOld() {
 	exe, err := os.Executable()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,11 @@ var (
 )
 
 func main() {
+	// Before anything else: if a background download from an earlier run is
+	// sitting there verified, a plain restart is the install. This may exec
+	// a new process and exit before a window, or a mutex, ever exists.
+	applyPendingUpdateIfStaged()
+
 	if !claimSingleInstance() {
 		return
 	}
@@ -85,7 +91,7 @@ func main() {
 					return
 				}
 			} else {
-				err = applyUpdate(exeURL, sumURL)
+				err = applyStagedOrDownload(exeURL, sumURL)
 			}
 			if err != nil {
 				w.Dispatch(func() {
@@ -161,12 +167,27 @@ func pollUpdates(w webview2.WebView) {
 		if !ok {
 			return
 		}
+		packaged := runningPackaged()
+		// A loose exe is fully ours to fetch, so stage it silently in the
+		// background and only say anything once a restart would be instant.
+		// Windows stages a packaged install on its own; there is nothing
+		// here to download for that case.
+		if !packaged && exeURL != "" && sumURL != "" {
+			exe, err := os.Executable()
+			if err != nil {
+				return
+			}
+			if !verifyStaged(exe) {
+				if err := stageUpdate(exe, exeURL, sumURL); err != nil {
+					return // stays quiet; the next poll tries again
+				}
+			}
+		}
 		pendingMu.Lock()
 		pending.version = ver
 		pending.exeURL = exeURL
 		pending.sumURL = sumURL
 		pendingMu.Unlock()
-		packaged := runningPackaged()
 		w.Dispatch(func() {
 			w.Eval("window.__cliqueUpdate(" + jsString(ver) + ", " +
 				map[bool]string{true: "true", false: "false"}[packaged] + ")")
