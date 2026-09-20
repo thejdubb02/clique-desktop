@@ -19,7 +19,7 @@ var (
 	quitting  atomic.Bool
 )
 
-func startTray(w webview2.WebView) {
+func startTray(w webview2.WebView, serverURL string) {
 	go func() {
 		// A panic here would kill the process; the window should keep running without a tray.
 		defer func() { recover() }()
@@ -27,11 +27,11 @@ func startTray(w webview2.WebView) {
 		// message queues are per thread, and an unlocked goroutine can migrate
 		// threads mid loop. The main goroutine belongs to the webview.
 		runtime.LockOSThread()
-		systray.Run(func() { onReady(w) }, nil)
+		systray.Run(func() { onReady(w, serverURL) }, nil)
 	}()
 }
 
-func onReady(w webview2.WebView) {
+func onReady(w webview2.WebView, serverURL string) {
 	systray.SetIcon(trayIcon)
 	systray.SetTitle("CLIque")
 	systray.SetTooltip(trayTooltip(Version, 0))
@@ -41,10 +41,25 @@ func onReady(w webview2.WebView) {
 	verItem := systray.AddMenuItem(trayTooltip(Version, 0), "The version running now")
 	verItem.Disable()
 	showItem := systray.AddMenuItem("Show CLIque", "Show CLIque")
+	// The webview has no address bar and no F5, so a page stuck in a bad
+	// state (a dead socket, a pane that stopped switching) had no way back
+	// short of quitting the whole app. Sessions live in tmux on the panel's
+	// machine, not this process, so a reload costs nothing.
+	reloadItem := systray.AddMenuItem("Reload CLIque", "Reload the panel")
 	quitItem := systray.AddMenuItem("Quit CLIque", "Quit CLIque")
 	go func() {
 		for range showItem.ClickedCh {
 			w.Dispatch(func() { showWindow(w) })
+		}
+	}()
+	go func() {
+		for range reloadItem.ClickedCh {
+			w.Dispatch(func() {
+				showWindow(w)
+				if serverURL != "" {
+					w.Navigate(serverURL)
+				}
+			})
 		}
 	}()
 	go func() {

@@ -151,7 +151,7 @@ func main() {
 	go pollUpdates(w)
 	installWindowHooks(w)
 	restoreBox(w, cfg.Window)
-	startTray(w)
+	startTray(w, cfg.ServerURL)
 	w.Run()
 }
 
