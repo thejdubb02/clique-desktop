@@ -46,6 +46,15 @@ VIAddVersionKey "LegalCopyright" "MIT licensed"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\CLIque"
 
 Section "Install"
+  ; A copy already running holds the single-instance mutex under the old
+  ; code, so launching the freshly installed exe would just find it held and
+  ; quietly hand focus back to the *old* window instead of starting the new
+  ; version — installing would look like it did nothing. Its window
+  ; intercepts a plain WM_CLOSE to hide to tray rather than quit, so this
+  ; needs /F, not a graceful close. Sessions are not in this process, they
+  ; are tmux on the panel's machine, so force-closing it loses nothing.
+  nsExec::Exec 'taskkill /F /IM CLIque.exe'
+
   SetOutPath "$INSTDIR"
   File "${SRC}"
   File "tray.ico"
@@ -70,6 +79,10 @@ Section "Install"
 SectionEnd
 
 Section "Uninstall"
+  ; Same reasoning as the installer: a running copy locks its own exe against
+  ; deletion, and a plain close just hides it to tray instead of quitting.
+  nsExec::Exec 'taskkill /F /IM CLIque.exe'
+
   ; The updater leaves .old/.new/.new.sha256 beside the exe between restarts;
   ; a straight wildcard clears whichever of those happen to exist.
   Delete "$INSTDIR\CLIque.exe*"
