@@ -1,4 +1,4 @@
-# CLIque desktop client — one-line install.
+# CLIque desktop client, one-line install.
 #
 #   irm https://raw.githubusercontent.com/thejdubb02/clique-desktop/main/scripts/install.ps1 | iex
 #
@@ -10,9 +10,9 @@
 # The installer and the app are signed with our own certificate, not one
 # from a paid CA (see the main README for why). Windows SmartScreen still
 # runs its own separate reputation check on a first download regardless of
-# signing, which a self-signed cert cannot clear — if you see a blue
+# signing, which a self-signed cert cannot clear. If you see a blue
 # "Windows protected your PC" screen, that is expected on first install
-# only, click "More info" then "Run anyway".
+# only: click "More info" then "Run anyway".
 
 $ErrorActionPreference = "Stop"
 
@@ -34,7 +34,7 @@ try {
     $Expected = (Get-Content $Sum -Raw).Trim().Split(" ")[0].ToLower()
     $Actual = (Get-FileHash -Path $Exe -Algorithm SHA256).Hash.ToLower()
     if ($Expected -ne $Actual) {
-        Write-Error "checksum mismatch: expected $Expected, got $Actual — not running this file. Download may be corrupt or tampered; try again, and if it keeps happening say so."
+        Write-Error "checksum mismatch: expected $Expected, got $Actual. Not running this file. Download may be corrupt or tampered; try again, and if it keeps happening say so."
         exit 1
     }
     Write-Host "Checksum verified."

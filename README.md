@@ -25,7 +25,7 @@ it's done.
 
 Or by hand: download `CLIque-Setup.exe` from the
 [latest release](https://github.com/thejdubb02/clique-desktop/releases/latest)
-and run it yourself — same installer, same result.
+and run it yourself, same installer, same result.
 
 Either way, the installer and the app are signed with our own certificate
 rather than a paid one, so Windows SmartScreen shows an "unknown publisher"
@@ -146,7 +146,7 @@ cert/key; generate a self-signed one with `openssl req -x509 -newkey rsa:3072
 
 `scripts/release.sh <version>` does the whole thing: package.sh, tag, push,
 and `gh release create` with every file package.sh built (by glob, not a
-hand-typed list — v0.3.17 shipped without the checksum the in-app updater
+hand-typed list: v0.3.17 shipped without the checksum the in-app updater
 needs because a hand-typed asset list left it off), then checks the
 *published* release actually has all four expected assets before it calls
 itself done. `RELEASE_NOTES="..." scripts/release.sh 0.3.18` to set real
