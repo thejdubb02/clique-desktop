@@ -15,7 +15,7 @@ go test ./...
 # icon and the SmartScreen warning has no name to show.
 go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 \
   -o resource_windows.syso -product-version "${VERSION}" -file-version "${VERSION}" \
-  versioninfo.json
+  -manifest app.manifest versioninfo.json
 
 # -trimpath keeps the build reproducible: without it the binary carries absolute
 # paths from whichever machine built it, two builds of identical source hash
@@ -23,16 +23,18 @@ go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 \
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
   go build -trimpath -ldflags="-H windowsgui -s -w -X main.Version=${VERSION}" -o dist/CLIque.exe .
 
-# The window asks for its icon by resource id 1, and nothing at runtime says so
-# when it is missing: the window simply has no icon, which is only visible to
-# someone looking at a taskbar. Windows shipped that way once already.
+# The window asks for its icon by resource id (main.go's IconId), and nothing
+# at runtime says so when it is missing: the window simply has no icon, which
+# is only visible to someone looking at a taskbar. Windows shipped that way
+# once already. Id 2, not 1: RT_MANIFEST claims id 1, which pushes the icon
+# group to 2 — keep this in sync with main.go's IconId if that ever changes.
 if ! command -v wrestool >/dev/null; then
   echo "need icoutils for the icon check: apt-get install icoutils" >&2
   exit 1
 fi
 # -l and grep, not -x: extracting a resource that is not there still exits 0.
-wrestool -l dist/CLIque.exe 2>/dev/null | grep -q -- '--type=14 --name=1 --language' || {
-  echo "no icon group 1 in dist/CLIque.exe, so the window would have no icon" >&2
+wrestool -l dist/CLIque.exe 2>/dev/null | grep -q -- '--type=14 --name=2 --language' || {
+  echo "no icon group 2 in dist/CLIque.exe, so the window would have no icon" >&2
   exit 1
 }
 

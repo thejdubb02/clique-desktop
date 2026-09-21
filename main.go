@@ -41,6 +41,14 @@ func main() {
 
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		DataPath: WebViewDataPath(),
+		// go-webview2 leaves keyboard focus on the outer window at startup
+		// and after alt-tab; nothing moves it into the WebView2 control
+		// unless this is on. That is the library's own documented fix for
+		// exactly this ("Keyboard focus not set on browser by default",
+		// jchv/go-webview2#32) — tried here alongside app.manifest's DPI
+		// awareness as the two candidates for the dead mouse wheel, since
+		// neither can be verified without a Windows machine to scroll on.
+		AutoFocus: true,
 		WindowOptions: webview2.WindowOptions{
 			Title:  "CLIque",
 			Width:  1280,
@@ -50,7 +58,13 @@ func main() {
 			// embedded icon: go-webview2's default branch calls LoadImageW
 			// with the system icon width where the image type belongs, which
 			// fails, and the window ends up with no icon at all.
-			IconId: 1,
+			//
+			// Id 2, not 1: RT_MANIFEST (app.manifest) has to be resource id 1
+			// for Windows to load it automatically, which pushes goversioninfo's
+			// icon group to the next id. Verified against the built exe with
+			// wrestool, not assumed — group icon 1 goes with the manifest now,
+			// group icon 2 is tray.ico.
+			IconId: 2,
 		},
 	})
 	if w == nil {
