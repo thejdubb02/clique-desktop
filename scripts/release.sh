@@ -25,10 +25,12 @@ fi
 
 scripts/package.sh "$VERSION"
 
-# The one file the updater trusts before it applies anything downloaded.
-# Fail loudly here rather than publish a release that quietly can't update
-# to itself.
-for f in CLIque.exe CLIque.exe.sha256 CLIque-Setup.exe CLIque-Setup.exe.sha256; do
+# CLIque.exe.sha256 is the file the updater trusts before it applies
+# anything downloaded; the Setup one is what install.ps1 checks. One list,
+# checked twice below (built, then published) rather than typed twice.
+REQUIRED=(CLIque.exe CLIque.exe.sha256 CLIque-Setup.exe CLIque-Setup.exe.sha256)
+
+for f in "${REQUIRED[@]}"; do
   [ -s "dist/$f" ] || { echo "dist/$f missing or empty" >&2; exit 1; }
 done
 
@@ -47,7 +49,7 @@ gh release create "$TAG" dist/* --title "$TAG" ${NOTES:+--notes "$NOTES"}
 # release itself for the assets a client actually needs, the same gap
 # that shipped in v0.3.17.
 published="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
-for want in CLIque.exe CLIque-Setup.exe CLIque.exe.sha256 CLIque-Setup.exe.sha256; do
+for want in "${REQUIRED[@]}"; do
   echo "$published" | grep -qx "$want" || {
     echo "published release is missing $want: fix and re-upload, do not tell anyone to update" >&2
     exit 1
