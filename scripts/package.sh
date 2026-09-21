@@ -45,7 +45,10 @@ makensis -DVERSION="$VERSION" \
 sign dist/CLIque-Setup.exe
 
 # Recomputed after signing: the published checksum has to match the bytes
-# actually downloaded, and signing changes those bytes.
+# actually downloaded, and signing changes those bytes. CLIque.exe's is what
+# the in-app updater checks (update.go's sumAsset); CLIque-Setup.exe's is
+# what scripts/install.ps1 checks before running a downloaded installer.
 sha256sum dist/CLIque.exe | awk '{print $1, "CLIque.exe"}' OFS='  ' > dist/CLIque.exe.sha256
+sha256sum dist/CLIque-Setup.exe | awk '{print $1, "CLIque-Setup.exe"}' OFS='  ' > dist/CLIque-Setup.exe.sha256
 
 ls -lh dist/

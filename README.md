@@ -12,15 +12,25 @@ WebView2 runtime that Windows already ships.
 
 ## Install
 
-Download `CLIque-Setup.exe` from the
-[latest release](https://github.com/thejdubb02/clique-desktop/releases/latest)
-and run it. No admin prompt: it installs to your own user profile, adds a Start
-menu entry and an uninstaller, and opens CLIque when it's done.
+In PowerShell:
 
-The installer and the app are signed with our own certificate rather than a
-paid one, so Windows SmartScreen shows an "unknown publisher" warning the
-first time. Click **More info → Run anyway**. That is the only click this ever
-asks for: it does not come back on an update.
+```powershell
+irm https://raw.githubusercontent.com/thejdubb02/clique-desktop/main/scripts/install.ps1 | iex
+```
+
+Downloads the latest installer, checks it against the checksum published
+alongside it, and runs it. No admin prompt: it installs to your own user
+profile, adds a Start menu entry and an uninstaller, and opens CLIque when
+it's done.
+
+Or by hand: download `CLIque-Setup.exe` from the
+[latest release](https://github.com/thejdubb02/clique-desktop/releases/latest)
+and run it yourself — same installer, same result.
+
+Either way, the installer and the app are signed with our own certificate
+rather than a paid one, so Windows SmartScreen shows an "unknown publisher"
+warning the first time. Click **More info → Run anyway**. That is the only
+click this ever asks for: it does not come back on an update.
 
 On first run, enter the URL of your panel, for example
 `https://yourbox.tailnet.ts.net/clique/` or `http://192.168.1.10:3200/`. That is
@@ -82,12 +92,12 @@ anything about an update while you are trying to start.
 
 CLIque then checks a minute later and every half hour after that. When a new
 version exists it downloads and verifies it quietly in the background, and only
-then does a small card appear in the bottom corner, so by the time you see it a
-restart is an instant swap, not a wait. Press **Restart now** and it reopens on
-the new version. Press **Later** and it goes away until the next check.
+then does a small button appear next to the version number, so by the time you
+see it a restart is an instant swap, not a wait. Click it and it installs and
+reopens on the new version, no second confirmation.
 
-**You don't have to press anything.** The next time CLIque closes and reopens,
-by any means, it applies whatever was already downloaded and verified on its
+**You don't have to click it.** The next time CLIque closes and reopens, by
+any means, it applies whatever was already downloaded and verified on its
 own. The button just makes it happen sooner.
 
 The check never blocks startup and never interrupts you when it fails: no
@@ -133,6 +143,14 @@ osslsigncode`). Both free, both run on Linux. It needs a code-signing
 cert/key; generate a self-signed one with `openssl req -x509 -newkey rsa:3072
 -nodes -addext extendedKeyUsage=codeSigning ...` and point `CLIQUE_SIGNING_CERT`
 / `CLIQUE_SIGNING_KEY` at it, or leave them unset to use the estate's own key.
+
+`scripts/release.sh <version>` does the whole thing: package.sh, tag, push,
+and `gh release create` with every file package.sh built (by glob, not a
+hand-typed list — v0.3.17 shipped without the checksum the in-app updater
+needs because a hand-typed asset list left it off), then checks the
+*published* release actually has all four expected assets before it calls
+itself done. `RELEASE_NOTES="..." scripts/release.sh 0.3.18` to set real
+release notes; without it, the release publishes with just the tag name.
 
 ## Licence
 
