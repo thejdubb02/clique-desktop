@@ -1,47 +1,6 @@
 (function () {
   const ROOT_ID = "clique-update-root";
 
-  /* A cursor walking a row of cells, rather than a spinner.
-   *
-   * Indeterminate on purpose: neither path can say how far along it is.
-   * Windows does not report package progress to us, and the loose exe's
-   * download is a few megabytes usually gone before a number would have meant
-   * anything. Every colour comes from the panel's own theme, so it is the
-   * right one on a light theme too, and CSS does the moving: three blocks
-   * changing opacity is nothing next to a pane running a dozen terminals.
-   *
-   * prefers-reduced-motion gets a slower walk, not a still image, because a
-   * still loader reads as a hung one. */
-  function cursorLoader(dim, accent) {
-    var wrap = document.createElement("div");
-    wrap.className = "clique-update-cells";
-    wrap.setAttribute("aria-hidden", "true");
-    wrap.style.cssText = "margin-top:14px;display:flex;gap:4px;align-items:center;";
-    for (var i = 0; i < 5; i++) {
-      var cell = document.createElement("span");
-      cell.style.cssText = "display:block;width:9px;height:14px;border-radius:2px;" +
-        "background:" + accent + ";opacity:.18;" +
-        "animation:clique-update-cell 1.15s " + (i * 0.11).toFixed(2) + "s ease-in-out infinite;";
-      wrap.appendChild(cell);
-    }
-    var trail = document.createElement("span");
-    trail.style.cssText = "margin-left:6px;font:12px/1 'Segoe UI',system-ui,sans-serif;color:" + dim + ";";
-    wrap.appendChild(trail);
-    return wrap;
-  }
-
-  window.__cliqueUpdateFailed = function (msg) {
-    const err = document.getElementById("clique-update-err");
-    const restart = document.getElementById("clique-update-restart");
-    const later = document.getElementById("clique-update-later");
-    if (err) err.textContent = msg || "update failed";
-    if (restart) {
-      restart.disabled = false;
-      restart.textContent = "Restart now";
-    }
-    if (later) later.disabled = false;
-  };
-
   /* The card sits inside the panel's page, so it can read the panel's own
      theme rather than being told it. The fallbacks are the old fixed colours,
      for the first-run setup page, which has no theme to read. */
@@ -55,109 +14,100 @@
     }
   }
 
+  const ICON_UPDATE =
+    '<path d="M12 4v10m0 0l-4-4m4 4l4-4M6 18h12" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" fill="none"/>';
+  const ICON_SPIN =
+    '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none" ' +
+    'stroke-dasharray="34 12" stroke-linecap="round"/>';
+  const ICON_ERR =
+    '<path d="M12 8v5M12 16.5v.01" stroke="currentColor" stroke-width="2.2" ' +
+    'stroke-linecap="round" fill="none"/>';
+
+  /* One small round button, not a card: a click installs and restarts, no
+   * second confirmation, so the only thing worth showing is which state it
+   * is in — waiting for a click, working, or failed and clickable again. */
   window.__cliqueUpdate = function (version) {
-    var cPanel = themed("--panel", "#1e1e1e");
-    var cFg = themed("--fg", "#e6e6e6");
-    var cDim = themed("--dim", "#9a9a9a");
-    var cLine = themed("--line", "#3a3a3a");
     var cAccent = themed("--accent", "#0078d4");
     var cOnAccent = themed("--on-accent", "#ffffff");
+    var cErr = "#f85149";
     const existing = document.getElementById(ROOT_ID);
     if (existing) existing.remove();
-
-    const root = document.createElement("div");
-    root.id = ROOT_ID;
-    root.setAttribute("role", "status");
-    root.style.cssText = [
-      "position:fixed",
-      "right:20px",
-      "bottom:20px",
-      "z-index:2147483000",
-      "width:min(320px,92vw)",
-      "box-sizing:border-box",
-      "padding:16px 16px 14px",
-      "background:" + cPanel,
-      "color:" + cFg,
-      "border:1px solid " + cLine,
-      "border-radius:12px",
-      "box-shadow:0 12px 40px rgba(0,0,0,0.45)",
-      "font:14px/1.45 'Segoe UI',system-ui,sans-serif",
-      "letter-spacing:normal",
-      "text-align:left"
-    ].join(";");
 
     const style = document.createElement("style");
     style.id = "clique-update-style";
     style.textContent =
-      "#" + ROOT_ID + "{opacity:0;transform:translateY(8px);transition:opacity 160ms ease,transform 160ms ease;}" +
+      "#" + ROOT_ID + "{opacity:0;transform:scale(.7);transition:opacity 160ms ease,transform 160ms ease;}" +
       "#" + ROOT_ID + ".clique-update-in{opacity:1;transform:none;}" +
-      "@keyframes clique-update-cell{0%,70%,100%{opacity:.18;}35%{opacity:1;}}" +
-      "@media (prefers-reduced-motion:reduce){#" + ROOT_ID + "{transition:none;}" +
-      "#" + ROOT_ID + " .clique-update-cells span{animation-duration:2.6s;}}" +
-      "@media (prefers-reduced-motion: reduce){" +
-      "#" + ROOT_ID + ",#" + ROOT_ID + ".clique-update-in{opacity:1;transform:none;transition:none;}" +
-      "}";
-    root.appendChild(style);
+      "#" + ROOT_ID + "::before{content:'';position:absolute;inset:-4px;border-radius:50%;" +
+      "box-shadow:0 0 0 0 var(--clique-update-ring);animation:clique-update-pulse 2.2s ease-out infinite;}" +
+      "@keyframes clique-update-pulse{0%{box-shadow:0 0 0 0 var(--clique-update-ring);}" +
+      "70%{box-shadow:0 0 0 9px transparent;}100%{box-shadow:0 0 0 0 transparent;}}" +
+      "#" + ROOT_ID + " svg{animation:none;}" +
+      "#" + ROOT_ID + ".clique-update-busy svg{animation:clique-update-spin 0.9s linear infinite;}" +
+      "@keyframes clique-update-spin{to{transform:rotate(360deg);}}" +
+      "@media (prefers-reduced-motion:reduce){#" + ROOT_ID + "::before{animation:none;box-shadow:none;}" +
+      "#" + ROOT_ID + ",#" + ROOT_ID + ".clique-update-in{transition:none;}}";
+    document.head.appendChild(style);
 
-    const heading = document.createElement("div");
-    heading.id = "clique-update-heading";
-    heading.style.cssText = "font:600 15px/1.3 'Segoe UI',system-ui,sans-serif;margin:0 0 8px;color:#f3f3f3;";
-    heading.textContent = "CLIque " + version + " is ready";
-    root.appendChild(heading);
+    const btn = document.createElement("button");
+    btn.id = ROOT_ID;
+    btn.type = "button";
+    btn.title = "CLIque " + version + " is ready — click to install and restart";
+    btn.setAttribute("aria-label", btn.title);
+    btn.style.cssText = [
+      "position:fixed", "right:20px", "bottom:20px", "z-index:2147483000",
+      "width:40px", "height:40px", "border-radius:50%", "padding:0",
+      "display:flex", "align-items:center", "justify-content:center",
+      "background:" + cAccent, "color:" + cOnAccent, "border:none", "cursor:pointer",
+      "box-shadow:0 4px 16px rgba(0,0,0,0.35)",
+      "--clique-update-ring:" + cAccent + "99"
+    ].join(";");
 
-    const body = document.createElement("div");
-    body.id = "clique-update-body";
-    body.style.cssText = "font:13px/1.45 'Segoe UI',system-ui,sans-serif;margin:0 0 12px;color:#b3b3b3;";
-    body.textContent = "Restart when you like. Your sessions keep running, they live on the server, so nothing is lost.";
-    root.appendChild(body);
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("width", "20");
+    icon.setAttribute("height", "20");
+    icon.setAttribute("viewBox", "0 0 24 24");
+    icon.style.cssText = "transform-origin:center;display:block;";
+    icon.innerHTML = ICON_UPDATE;
+    btn.appendChild(icon);
 
-    const err = document.createElement("div");
-    err.id = "clique-update-err";
-    err.style.cssText = "font:12px/1.4 'Segoe UI',system-ui,sans-serif;min-height:0;margin:0 0 8px;color:#f85149;";
-    root.appendChild(err);
+    function setBusy() {
+      btn.classList.add("clique-update-busy");
+      btn.disabled = true;
+      btn.title = "Installing CLIque " + version + "…";
+      btn.setAttribute("aria-label", btn.title);
+      icon.innerHTML = ICON_SPIN;
+    }
 
-    const row = document.createElement("div");
-    row.id = "clique-update-actions";
-    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;align-items:center;";
+    function setFailed(msg) {
+      btn.classList.remove("clique-update-busy");
+      btn.disabled = false;
+      btn.style.background = cErr;
+      btn.title = "Update failed: " + (msg || "unknown error") + " — click to retry";
+      btn.setAttribute("aria-label", btn.title);
+      icon.innerHTML = ICON_ERR;
+    }
 
-    const later = document.createElement("button");
-    later.id = "clique-update-later";
-    later.type = "button";
-    later.textContent = "Later";
-    later.style.cssText = "font:600 13px/1.3 'Segoe UI',system-ui,sans-serif;padding:8px 12px;margin:0;" +
-      "border-radius:6px;cursor:pointer;background:transparent;color:" + cDim + ";border:1px solid " + cLine + ";";
-    later.addEventListener("click", function () {
-      root.remove();
-    });
-    row.appendChild(later);
+    window.__cliqueUpdateFailed = function (msg) {
+      setFailed(msg);
+    };
 
-    const restart = document.createElement("button");
-    restart.id = "clique-update-restart";
-    restart.type = "button";
-    restart.textContent = "Restart now";
-    restart.style.cssText = "font:600 13px/1.3 'Segoe UI',system-ui,sans-serif;padding:8px 12px;margin:0;" +
-      "border-radius:6px;cursor:pointer;background:" + cAccent + ";color:" + cOnAccent + ";border:1px solid " + cAccent + ";";
-    restart.addEventListener("click", async function () {
-      later.disabled = true;
-      restart.disabled = true;
-      err.textContent = "";
-      heading.textContent = "Installing CLIque " + version;
-      body.textContent = "CLIque will close and open again by itself.";
-      row.remove();
-      root.appendChild(cursorLoader(cDim, cAccent));
+    btn.addEventListener("click", async function () {
+      setBusy();
       try {
         const msg = await window.cliqueRestart();
-        if (msg) window.__cliqueUpdateFailed(msg);
+        if (msg) setFailed(msg);
+        // No message means the app is already on its way down to relaunch;
+        // nothing left here should still be running to update.
       } catch (e) {
-        window.__cliqueUpdateFailed(e && e.message ? e.message : String(e));
+        setFailed(e && e.message ? e.message : String(e));
       }
     });
-    row.appendChild(restart);
 
-    root.appendChild(row);
-    (document.body || document.documentElement).appendChild(root);
+    (document.body || document.documentElement).appendChild(btn);
     requestAnimationFrame(function () {
-      root.classList.add("clique-update-in");
+      btn.classList.add("clique-update-in");
     });
   };
 
