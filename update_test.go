@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -158,4 +159,40 @@ func TestIsNewerGarbageDoesNotPanic(t *testing.T) {
 	_ = isNewer("1.x.3", "0.1.0")
 	_ = isNewer("??", "not-a-version")
 	_ = isNewer("", "")
+}
+
+// A relaunch that fails after the swap must leave the old binary in place,
+// and a retry must still get all the way to the new one.
+func TestApplyFailedLaunchStaysOldThenRetries(t *testing.T) {
+	exe := filepath.Join(t.TempDir(), "CLIque.exe")
+	if err := os.WriteFile(exe, []byte("old binary"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	exeURL, sumURL, cleanup := fakeRelease(t, []byte("new binary"))
+	defer cleanup()
+	defer func(s func(string) error, e func(int)) { startExe, exitNow = s, e }(startExe, exitNow)
+
+	startExe = func(string) error { return errors.New("launch refused") }
+	exited := false
+	exitNow = func(int) { exited = true }
+	if err := applyAt(exe, exeURL, sumURL); err == nil {
+		t.Fatal("a failed launch must report an error")
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "old binary" {
+		t.Fatalf("exe after failed launch = %q, want old binary", got)
+	}
+	if exited {
+		t.Fatal("must not exit when nothing was launched")
+	}
+
+	startExe = func(string) error { return nil }
+	if err := applyAt(exe, exeURL, sumURL); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "new binary" {
+		t.Fatalf("exe after retry = %q, want new binary", got)
+	}
+	if !exited {
+		t.Fatal("a successful launch must exit this process")
+	}
 }

@@ -217,6 +217,16 @@ func applyStagedOrDownload(exeURL, sumURL string) error {
 	if err != nil {
 		return err
 	}
+	return applyAt(exe, exeURL, sumURL)
+}
+
+// Swapped out by the tests, which cannot launch a process or exit the runner.
+var (
+	startExe = func(exe string) error { return exec.Command(exe).Start() }
+	exitNow  = os.Exit
+)
+
+func applyAt(exe, exeURL, sumURL string) error {
 	if !verifyStaged(exe) {
 		if err := stageUpdate(exe, exeURL, sumURL); err != nil {
 			return err
@@ -230,14 +240,18 @@ func applyStagedOrDownload(exeURL, sumURL string) error {
 	// The named mutex is still held by this process. Close it before
 	// starting the new one, or the new process will see us and exit.
 	releaseSingleInstance()
-	if err := exec.Command(exe).Start(); err != nil {
-		// The swap happened but nothing was launched, so this process carries
-		// on as the only copy. Take the mutex back, or a second launch would
+	if err := startExe(exe); err != nil {
+		// Nothing was launched, so this process carries on. Put the old
+		// binary back so it stays the old version on disk too, rather than
+		// silently becoming the new one at the next launch; a retry fetches
+		// the update again. Take the mutex back, or a second launch would
 		// open a second window.
+		os.Remove(exe)
+		os.Rename(exe+".old", exe)
 		claimSingleInstance()
 		return err
 	}
-	os.Exit(0)
+	exitNow(0)
 	return nil
 }
 
